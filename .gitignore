@@ -1,2 +1,15 @@
-# Project exclude paths
-/.venv/
+# environment
+.venv/
+__pycache__/
+*.pyc
+.idea/
+.pytest_cache/
+
+# large binaries, re-downloadable
+models/*.task
+
+# pipeline artifacts, reproducible from data + code
+results/
+
+# input videos (remove this line if using Git LFS for them)
+data/*.mp4

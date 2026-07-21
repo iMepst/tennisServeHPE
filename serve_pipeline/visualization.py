@@ -10,26 +10,29 @@ Pure image-in / image-out functions plus a thin video-writer wrapper, so the
 drawing logic is unit-testable without any video file.
 """
 
-from typing import List
+from typing import List, Tuple
 
 import cv2
 import numpy as np
 
+from .ingestion import BgrImage
 from .landmarks import POSE_CONNECTIONS
 from .pose_extraction import FramePose
 
-_BONE_COLOR = (200, 200, 200)
-_HUD_COLOR = (255, 255, 255)
-_NO_POSE_COLOR = (0, 0, 255)
+_BgrColor = Tuple[int, int, int]
+
+_BONE_COLOR: _BgrColor = (200, 200, 200)
+_HUD_COLOR: _BgrColor = (255, 255, 255)
+_NO_POSE_COLOR: _BgrColor = (0, 0, 255)
 
 
-def visibility_to_bgr(visibility: float):
+def visibility_to_bgr(visibility: float) -> _BgrColor:
     """Map visibility in [0, 1] to BGR: 1 -> green, 0 -> red."""
     v = float(np.clip(visibility, 0.0, 1.0))
     return (0, int(round(255 * v)), int(round(255 * (1.0 - v))))
 
 
-def draw_pose(image_bgr, frame_pose: FramePose):
+def draw_pose(image_bgr: BgrImage, frame_pose: FramePose) -> BgrImage:
     """Draws skeleton + HUD onto a copy of the frame and returns it."""
     out = image_bgr.copy()
     h, w = out.shape[:2]
@@ -55,28 +58,29 @@ def draw_pose(image_bgr, frame_pose: FramePose):
 class OverlayVideoWriter:
     """Writes overlay frames to an mp4 with the source video's fps/size."""
 
-    def __init__(self, path, fps, width, height):
+    def __init__(self, path: str, fps: float,
+                 width: int, height: int) -> None:
         self.path = path
-        fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+        fourcc = cv2.VideoWriter.fourcc(*"mp4v")
         self._writer = cv2.VideoWriter(path, fourcc, fps, (width, height))
         if not self._writer.isOpened():
             raise IOError(f"Could not open video writer for {path}")
 
-    def __enter__(self):
+    def __enter__(self) -> "OverlayVideoWriter":
         return self
 
-    def __exit__(self, exc_type, exc, tb):
+    def __exit__(self, exc_type: object, exc: object, tb: object) -> None:
         self.close()
 
-    def write(self, image_bgr):
+    def write(self, image_bgr: BgrImage) -> None:
         self._writer.write(image_bgr)
 
-    def close(self):
+    def close(self) -> None:
         self._writer.release()
 
 
-def save_contact_sheet(path, images: List[np.ndarray], columns=4,
-                       thumb_width=320):
+def save_contact_sheet(path: str, images: List[BgrImage], columns: int = 4,
+                       thumb_width: int = 320) -> str:
     """Tiles overlay frames into one PNG for a quick visual sanity check."""
     if not images:
         raise ValueError("no images given")

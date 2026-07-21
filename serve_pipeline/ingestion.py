@@ -9,9 +9,15 @@ indices back to time.
 
 from dataclasses import dataclass, asdict
 import os
+from typing import Any, Dict, Iterator
 
 import cv2
 import numpy as np
+
+# H x W x 3, BGR channel order, dtype uint8 -- the array OpenCV decodes into.
+# Defined here (the pipeline's image entry point) and reused by the modules
+# that pass frames around, so signatures stay readable.
+BgrImage = np.ndarray
 
 
 @dataclass
@@ -22,7 +28,7 @@ class VideoMetadata:
     height: int
     frame_count_reported: int  # container header value, may be 0 or wrong
 
-    def to_dict(self):
+    def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
 
 
@@ -30,7 +36,7 @@ class VideoMetadata:
 class Frame:
     index: int
     time_s: float
-    image_bgr: np.ndarray
+    image_bgr: BgrImage
 
 
 class VideoReader:
@@ -43,7 +49,7 @@ class VideoReader:
                 ...
     """
 
-    def __init__(self, path):
+    def __init__(self, path: str) -> None:
         if not os.path.isfile(path):
             raise FileNotFoundError(path)
         self._cap = cv2.VideoCapture(path)
@@ -64,20 +70,22 @@ class VideoReader:
             frame_count_reported=int(self._cap.get(cv2.CAP_PROP_FRAME_COUNT)),
         )
 
-    def __enter__(self):
+    def __enter__(self) -> "VideoReader":
         return self
 
-    def __exit__(self, exc_type, exc, tb):
+    def __exit__(self, exc_type: object, exc: object, tb: object) -> None:
         self.close()
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[Frame]:
         index = 0
         while True:
             ok, image = self._cap.read()
             if not ok:
                 return
-            yield Frame(index=index, time_s=index / self.metadata.fps, image_bgr=image)
+            yield Frame(index=index,
+                        time_s=index / self.metadata.fps,
+                        image_bgr=image)
             index += 1
 
-    def close(self):
+    def close(self) -> None:
         self._cap.release()

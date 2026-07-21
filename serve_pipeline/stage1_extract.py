@@ -7,7 +7,8 @@ only and never re-run the model.
 
 Usage:
     python -m serve_pipeline.stage1_extract path/to/serve.mp4
-    python -m serve_pipeline.stage1_extract serve.mp4 --outdir results --max-frames 200
+    python -m serve_pipeline.stage1_extract serve.mp4 \
+        --outdir results --max-frames 200
 
 Outputs in --outdir:
     <name>_landmarks.csv   raw time series (see persistence.CSV_HEADER)
@@ -18,19 +19,24 @@ Outputs in --outdir:
 
 import argparse
 import datetime
+import logging
 import os
+from typing import Any, Dict, List, Optional
 
 import mediapipe
 
 from . import __version__
-from .ingestion import VideoReader
+from .ingestion import BgrImage, VideoReader
 from .persistence import (
     LandmarkCsvWriter,
+    git_commit_hash,
     summarize_extraction,
     write_metadata,
 )
-from .pose_extraction import PoseExtractor
+from .pose_extraction import FramePose, PoseExtractor
 from .visualization import OverlayVideoWriter, draw_pose, save_contact_sheet
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_MODEL = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
@@ -44,9 +50,13 @@ COORDINATE_NOTE = (
 )
 
 
-def run_stage1(video_path, outdir="results", model_path=DEFAULT_MODEL,
-               min_detection_confidence=0.5, min_tracking_confidence=0.5,
-               max_frames=None, contact_sheet_frames=8, progress_every=25):
+def run_stage1(video_path: str, outdir: str = "results",
+               model_path: str = DEFAULT_MODEL,
+               min_detection_confidence: float = 0.5,
+               min_tracking_confidence: float = 0.5,
+               max_frames: Optional[int] = None,
+               contact_sheet_frames: int = 8,
+               progress_every: int = 25) -> Dict[str, Any]:
     if not os.path.isfile(model_path):
         raise FileNotFoundError(
             f"Pose model not found: {model_path}\nDownload it with:\n"
@@ -63,8 +73,8 @@ def run_stage1(video_path, outdir="results", model_path=DEFAULT_MODEL,
         "contact_sheet_png": os.path.join(outdir, f"{base}_contact_sheet.png"),
     }
 
-    frame_poses = []
-    sheet_frames = []
+    frame_poses: List[FramePose] = []
+    sheet_frames: List[BgrImage] = []
 
     with VideoReader(video_path) as reader:
         meta_video = reader.metadata
@@ -81,34 +91,40 @@ def run_stage1(video_path, outdir="results", model_path=DEFAULT_MODEL,
             model_path=model_path,
             min_detection_confidence=min_detection_confidence,
             min_tracking_confidence=min_tracking_confidence,
-        ) as extractor, LandmarkCsvWriter(paths["landmarks_csv"]) as csv_out, \
-                OverlayVideoWriter(paths["overlay_mp4"], meta_video.fps,
-                                   meta_video.width, meta_video.height) as vid_out:
+        ) as extractor, \
+                LandmarkCsvWriter(paths["landmarks_csv"]) as csv_out, \
+                OverlayVideoWriter(
+                    paths["overlay_mp4"], meta_video.fps,
+                    meta_video.width, meta_video.height) as vid_out:
             for frame in reader:
                 if max_frames is not None and frame.index >= max_frames:
                     break
                 frame_pose = extractor.process(frame.index, frame.time_s,
                                                frame.image_bgr)
-                csv_out.write_frame(frame_pose)          # persist before anything else
+                # persist before anything else can fail
+                csv_out.write_frame(frame_pose)
                 overlay = draw_pose(frame.image_bgr, frame_pose)
                 vid_out.write(overlay)
                 frame_poses.append(frame_pose)
                 if frame.index in sheet_indices:
                     sheet_frames.append(overlay)
                 if frame.index % progress_every == 0:
-                    print(f"  frame {frame.index}"
-                          + ("" if frame_pose.detected else "  [no pose]"))
+                    logger.info(
+                        "  frame %d%s", frame.index,
+                        "" if frame_pose.detected else "  [no pose]")
             extractor_config = extractor.config
 
     if sheet_frames:
         save_contact_sheet(paths["contact_sheet_png"], sheet_frames)
 
     stats = summarize_extraction(frame_poses)
-    meta = {
+    now = datetime.datetime.now(datetime.timezone.utc)
+    meta: Dict[str, Any] = {
         "stage": 1,
         "pipeline_version": __version__,
+        "commit": git_commit_hash(),
         "mediapipe_version": mediapipe.__version__,
-        "created_utc": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        "created_utc": now.isoformat(),
         "video": meta_video.to_dict(),
         "extractor": extractor_config,
         "statistics": stats,
@@ -117,18 +133,22 @@ def run_stage1(video_path, outdir="results", model_path=DEFAULT_MODEL,
     }
     write_metadata(paths["meta_json"], meta)
 
-    print("\nStage 1 complete")
-    print(f"  landmarks:     {paths['landmarks_csv']}")
-    print(f"  metadata:      {paths['meta_json']}")
-    print(f"  overlay video: {paths['overlay_mp4']}")
-    print(f"  contact sheet: {paths['contact_sheet_png']}")
-    print(f"  detection rate: {stats['detection_rate']:.1%} "
-          f"({stats['frames_with_pose']}/{stats['frames_processed']} frames), "
-          f"mean visibility {stats['mean_visibility']:.2f}")
+    logger.info("")
+    logger.info("Stage 1 complete")
+    logger.info("  landmarks:     %s", paths["landmarks_csv"])
+    logger.info("  metadata:      %s", paths["meta_json"])
+    logger.info("  overlay video: %s", paths["overlay_mp4"])
+    logger.info("  contact sheet: %s", paths["contact_sheet_png"])
+    logger.info(
+        "  detection rate: %.1f%% (%d/%d frames), mean visibility %.2f",
+        stats["detection_rate"] * 100.0,
+        stats["frames_with_pose"], stats["frames_processed"],
+        stats["mean_visibility"])
     return meta
 
 
-def main():
+def main() -> None:
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
     parser = argparse.ArgumentParser(
         description="Stage 1: BlazePose extraction + diagnostic overlay.")
     parser.add_argument("video", help="path to the input serve video")

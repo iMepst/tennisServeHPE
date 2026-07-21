@@ -21,7 +21,7 @@ exactly what the overlay video is meant to reveal.
 """
 
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import Any, Dict, List
 
 import cv2
 import mediapipe as mp
@@ -32,6 +32,7 @@ from mediapipe.tasks.python.vision import (
     RunningMode,
 )
 
+from .ingestion import BgrImage
 from .landmarks import NUM_LANDMARKS
 
 
@@ -63,8 +64,10 @@ class PoseExtractor:
     timestamps, so instances must not be reused across videos.
     """
 
-    def __init__(self, model_path, min_detection_confidence=0.5,
-                 min_tracking_confidence=0.5, min_presence_confidence=0.5):
+    def __init__(self, model_path: str,
+                 min_detection_confidence: float = 0.5,
+                 min_tracking_confidence: float = 0.5,
+                 min_presence_confidence: float = 0.5) -> None:
         options = PoseLandmarkerOptions(
             base_options=BaseOptions(model_asset_path=model_path),
             running_mode=RunningMode.VIDEO,
@@ -75,8 +78,8 @@ class PoseExtractor:
             output_segmentation_masks=False,
         )
         self._landmarker = PoseLandmarker.create_from_options(options)
-        self._last_timestamp_ms = -1
-        self.config = {
+        self._last_timestamp_ms: int = -1
+        self.config: Dict[str, Any] = {
             "model_path": model_path,
             "running_mode": "VIDEO",
             "min_detection_confidence": min_detection_confidence,
@@ -84,13 +87,14 @@ class PoseExtractor:
             "min_presence_confidence": min_presence_confidence,
         }
 
-    def __enter__(self):
+    def __enter__(self) -> "PoseExtractor":
         return self
 
-    def __exit__(self, exc_type, exc, tb):
+    def __exit__(self, exc_type: object, exc: object, tb: object) -> None:
         self.close()
 
-    def process(self, frame_index: int, time_s: float, image_bgr) -> FramePose:
+    def process(self, frame_index: int, time_s: float,
+                image_bgr: BgrImage) -> FramePose:
         rgb = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
         mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
 
@@ -125,5 +129,5 @@ class PoseExtractor:
         return FramePose(frame_index=frame_index, time_s=time_s,
                          detected=True, landmarks=observations)
 
-    def close(self):
+    def close(self) -> None:
         self._landmarker.close()

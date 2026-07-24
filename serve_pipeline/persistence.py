@@ -24,6 +24,7 @@ import subprocess
 from typing import Any, Dict, List, Optional
 
 from .gating import GatedFrame, GatedSample
+from .interpolation import ProcessedFrame, ProcessedSample
 from .landmarks import LANDMARK_NAMES, NUM_LANDMARKS
 from .pose_extraction import FramePose, LandmarkObservation
 
@@ -35,6 +36,11 @@ CSV_HEADER = [
 
 # Gated series (Stage 2a): raw schema plus the gating decision.
 GATED_CSV_HEADER = CSV_HEADER + ["valid", "mask_reason"]
+
+# Filtered series (Stage 2b): gated schema plus the processing flags.
+FILTERED_CSV_HEADER = GATED_CSV_HEADER + [
+    "interpolated", "reliable", "filtered",
+]
 
 _VALUE_FIELDS = ["x", "y", "z", "visibility", "presence",
                  "world_x", "world_y", "world_z"]
@@ -159,6 +165,67 @@ def read_gated_csv(path: str) -> List[GatedFrame]:
         if len(gf.samples) != NUM_LANDMARKS:
             raise ValueError(
                 f"Frame {gf.frame_index} has {len(gf.samples)} samples, "
+                f"expected {NUM_LANDMARKS}"
+            )
+    return result
+
+
+def _bit(flag: bool) -> int:
+    return 1 if flag else 0
+
+
+def write_filtered_csv(path: str, frames: List[ProcessedFrame]) -> None:
+    """Persist the Stage 2b filtered series (gated schema + processing flags).
+
+    Coordinate columns hold the filtered/interpolated values; ``valid`` and
+    ``mask_reason`` still report the original Stage 2a gating decision, so the
+    filtered artifact remains self-explaining about what was reconstructed.
+    """
+    with open(path, "w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(FILTERED_CSV_HEADER)
+        for frame in frames:
+            base = [frame.frame_index, f"{frame.time_s:.6f}"]
+            for s in frame.samples:
+                writer.writerow(
+                    base + [s.landmark_id, LANDMARK_NAMES[s.landmark_id]]
+                    + [_fmt(getattr(s, fld)) for fld in _VALUE_FIELDS]
+                    + [_bit(s.valid), s.mask_reason]
+                    + [_bit(s.interpolated), _bit(s.reliable),
+                       _bit(s.filtered)]
+                )
+
+
+def read_filtered_csv(path: str) -> List[ProcessedFrame]:
+    """Read a filtered CSV back into ProcessedFrame objects."""
+    frames: Dict[int, ProcessedFrame] = {}
+    with open(path, newline="") as f:
+        reader = csv.DictReader(f)
+        if reader.fieldnames != FILTERED_CSV_HEADER:
+            raise ValueError(
+                f"Unexpected filtered CSV schema in {path}: "
+                f"{reader.fieldnames}"
+            )
+        for row in reader:
+            idx = int(row["frame"])
+            if idx not in frames:
+                frames[idx] = ProcessedFrame(
+                    frame_index=idx, time_s=float(row["time_s"]), samples=[])
+            frames[idx].samples.append(ProcessedSample(
+                landmark_id=int(row["landmark_id"]),
+                valid=row["valid"] == "1",
+                mask_reason=row["mask_reason"],
+                interpolated=row["interpolated"] == "1",
+                reliable=row["reliable"] == "1",
+                filtered=row["filtered"] == "1",
+                **{fld: (None if row[fld] == "" else float(row[fld]))
+                   for fld in _VALUE_FIELDS},
+            ))
+    result = [frames[i] for i in sorted(frames)]
+    for pf in result:
+        if len(pf.samples) != NUM_LANDMARKS:
+            raise ValueError(
+                f"Frame {pf.frame_index} has {len(pf.samples)} samples, "
                 f"expected {NUM_LANDMARKS}"
             )
     return result

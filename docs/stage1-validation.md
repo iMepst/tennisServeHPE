@@ -58,8 +58,9 @@ serve plus preparation and post-serve movement (turning away from camera).
 
 ### 3.3 Qualitative inspection
 
-Overlay video and zoomed crops of the contact window
-(`results/serve_01_contact_zoom*.png`) show the skeleton correctly locked
+The overlay video and contact sheet
+(`results/serve_01/stage1/overlay.mp4`, `contact_sheet.png`) show the
+skeleton correctly locked
 onto the player through leg drive, extension, contact and follow-through
 (including the characteristic back-leg kick). No identity switches to
 spectators, no frame-level tracking loss.

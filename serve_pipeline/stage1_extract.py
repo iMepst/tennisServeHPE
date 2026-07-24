@@ -10,11 +10,11 @@ Usage:
     python -m serve_pipeline.stage1_extract serve.mp4 \
         --outdir results --max-frames 200
 
-Outputs in --outdir:
-    <name>_landmarks.csv   raw time series (see persistence.CSV_HEADER)
-    <name>_meta.json       video + model config + detection statistics
-    <name>_overlay.mp4     skeleton overlay, landmark colour = visibility
-    <name>_contact_sheet.png  evenly spaced overlay frames as one image
+Outputs in  <outdir>/<clip>/stage1/  (clip = the video's basename):
+    landmarks.csv       raw time series (see persistence.CSV_HEADER)
+    meta.json           video + model config + detection statistics
+    overlay.mp4         skeleton overlay, landmark colour = visibility
+    contact_sheet.png   evenly spaced overlay frames as one image
 """
 
 import argparse
@@ -27,6 +27,7 @@ import mediapipe
 
 from . import __version__
 from .ingestion import BgrImage, VideoReader
+from .layout import STAGE1, clip_from_video, stage_dir
 from .persistence import (
     LandmarkCsvWriter,
     git_commit_hash,
@@ -64,13 +65,14 @@ def run_stage1(video_path: str, outdir: str = "results",
             "https://storage.googleapis.com/mediapipe-models/pose_landmarker/"
             "pose_landmarker_heavy/float16/latest/pose_landmarker_heavy.task"
         )
-    os.makedirs(outdir, exist_ok=True)
-    base = os.path.splitext(os.path.basename(video_path))[0]
+    clip = clip_from_video(video_path)
+    out_dir = stage_dir(outdir, clip, STAGE1)
+    os.makedirs(out_dir, exist_ok=True)
     paths = {
-        "landmarks_csv": os.path.join(outdir, f"{base}_landmarks.csv"),
-        "meta_json": os.path.join(outdir, f"{base}_meta.json"),
-        "overlay_mp4": os.path.join(outdir, f"{base}_overlay.mp4"),
-        "contact_sheet_png": os.path.join(outdir, f"{base}_contact_sheet.png"),
+        "landmarks_csv": os.path.join(out_dir, "landmarks.csv"),
+        "meta_json": os.path.join(out_dir, "meta.json"),
+        "overlay_mp4": os.path.join(out_dir, "overlay.mp4"),
+        "contact_sheet_png": os.path.join(out_dir, "contact_sheet.png"),
     }
 
     frame_poses: List[FramePose] = []
@@ -121,6 +123,7 @@ def run_stage1(video_path: str, outdir: str = "results",
     now = datetime.datetime.now(datetime.timezone.utc)
     meta: Dict[str, Any] = {
         "stage": 1,
+        "clip": clip,
         "pipeline_version": __version__,
         "commit": git_commit_hash(),
         "mediapipe_version": mediapipe.__version__,

@@ -23,6 +23,7 @@ import os
 import subprocess
 from typing import Any, Dict, List, Optional
 
+from .gating import GatedFrame, GatedSample
 from .landmarks import LANDMARK_NAMES, NUM_LANDMARKS
 from .pose_extraction import FramePose, LandmarkObservation
 
@@ -31,6 +32,9 @@ CSV_HEADER = [
     "x", "y", "z", "visibility", "presence",
     "world_x", "world_y", "world_z",
 ]
+
+# Gated series (Stage 2a): raw schema plus the gating decision.
+GATED_CSV_HEADER = CSV_HEADER + ["valid", "mask_reason"]
 
 _VALUE_FIELDS = ["x", "y", "z", "visibility", "presence",
                  "world_x", "world_y", "world_z"]
@@ -105,6 +109,56 @@ def read_landmarks_csv(path: str) -> List[FramePose]:
         if fp.detected and len(fp.landmarks) != NUM_LANDMARKS:
             raise ValueError(
                 f"Frame {fp.frame_index} has {len(fp.landmarks)} landmarks, "
+                f"expected {NUM_LANDMARKS}"
+            )
+    return result
+
+
+def _fmt(v: Optional[float]) -> str:
+    return "" if v is None else f"{v:.6f}"
+
+
+def write_gated_csv(path: str, gated: List[GatedFrame]) -> None:
+    """Persist the Stage 2a gated series (raw schema + valid/mask_reason)."""
+    with open(path, "w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(GATED_CSV_HEADER)
+        for gframe in gated:
+            base = [gframe.frame_index, f"{gframe.time_s:.6f}"]
+            for s in gframe.samples:
+                writer.writerow(
+                    base + [s.landmark_id, LANDMARK_NAMES[s.landmark_id]]
+                    + [_fmt(getattr(s, fld)) for fld in _VALUE_FIELDS]
+                    + [1 if s.valid else 0, s.mask_reason]
+                )
+
+
+def read_gated_csv(path: str) -> List[GatedFrame]:
+    """Read a gated CSV back into GatedFrame objects (round-trips write)."""
+    frames: Dict[int, GatedFrame] = {}
+    with open(path, newline="") as f:
+        reader = csv.DictReader(f)
+        if reader.fieldnames != GATED_CSV_HEADER:
+            raise ValueError(
+                f"Unexpected gated CSV schema in {path}: {reader.fieldnames}"
+            )
+        for row in reader:
+            idx = int(row["frame"])
+            if idx not in frames:
+                frames[idx] = GatedFrame(
+                    frame_index=idx, time_s=float(row["time_s"]), samples=[])
+            frames[idx].samples.append(GatedSample(
+                landmark_id=int(row["landmark_id"]),
+                valid=row["valid"] == "1",
+                mask_reason=row["mask_reason"],
+                **{fld: (None if row[fld] == "" else float(row[fld]))
+                   for fld in _VALUE_FIELDS},
+            ))
+    result = [frames[i] for i in sorted(frames)]
+    for gf in result:
+        if len(gf.samples) != NUM_LANDMARKS:
+            raise ValueError(
+                f"Frame {gf.frame_index} has {len(gf.samples)} samples, "
                 f"expected {NUM_LANDMARKS}"
             )
     return result

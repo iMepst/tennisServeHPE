@@ -242,16 +242,27 @@ different parameters and re-validated first.
 
 ### 5.2 Gap handling and filtering
 
-- **Short gaps** (≤ ~3 frames, threshold to be justified against fps):
-  interpolated (linear or cubic spline); every interpolated sample is
+- **Short gaps** (≤ 3 frames = 120 ms at 25 fps): interpolated by **linear**
+  interpolation of the spatial coordinates; every interpolated sample is
   **flagged as interpolated** in the output so downstream metrics can be
-  qualified.
-- **Long gaps**: not interpolated; affected phases are marked unreliable.
-- **Smoothing**: low-pass filtering of the coordinate series. Candidate:
-  zero-phase Butterworth (dual-pass `filtfilt`, no phase shift), cut-off
-  chosen relative to serve motion bandwidth; alternative Savitzky–Golay.
-  Decision to be made empirically on raw-vs-filtered plots and documented.
-  ⚠ *Open decision point.*
+  qualified. Linear is used over cubic spline because on ≤ 3-frame spans a
+  spline offers no benefit and can overshoot.
+- **Long gaps** (> 3 frames) and **edge gaps** (no valid neighbour on one
+  side): not interpolated; affected samples are flagged unreliable and the
+  phases that contain them are treated as unreliable.
+- **Smoothing** *(decided)*: **zero-phase Butterworth, order 4, cut-off 5 Hz**,
+  applied dual-pass via `filtfilt` (no phase shift) per contiguous reliable
+  segment. Chosen empirically with a **filter-selection diagnostic**: a raw
+  coordinate-velocity view (`filtering_velocity_compare.png`, central-difference
+  d(y)/dt of the racket wrist), used only to break the tie because the position
+  traces were visually indistinguishable across cut-offs. This diagnostic is a
+  selection aid; it is *not* the joint angular velocity that Stage 2c computes
+  and persists (§5.3), and it is not persisted. From it: at 25 fps a 5 Hz
+  cut-off preserves the racket-arm velocity peaks while removing the > 5 Hz
+  jitter that an 8 Hz cut-off leaves in, whereas a 3 Hz cut-off clipped the
+  peaks by ~30–40 %. Savitzky–Golay remains available as a documented
+  alternative. Filtering precedes differentiation, so the jitter it removes does
+  not compound into the angular velocities (§5.3).
 
 ### 5.3 Kinematic computation
 

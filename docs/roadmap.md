@@ -148,6 +148,14 @@ that returns ninety degrees, a correct ISB conversion, and an upright trunk that
 returns zero. Cross-check of angle-over-time against the Stage 1 overlay at
 selected frames.
 
+> **Post-Stage-2 checkpoint (deferred refactor).** With Stage 2 complete the
+> `serve_pipeline/` module inventory is final, so this is the point to consider
+> splitting the flat package into subpackages (e.g. `io/`, `pose/`,
+> `processing/`, `viz/`, `stages/`). Do it as its own `[refactor]` commit with
+> the test suite proving nothing moved semantically. Deferred until here on
+> purpose: the natural boundaries are not fixed while Stage 2b/2c are still
+> adding processing modules.
+
 ### Sprint 4: Stage 3a, phase segmentation
 
 Goal. Segment each clip into serve phases from kinematic events. Resolves the

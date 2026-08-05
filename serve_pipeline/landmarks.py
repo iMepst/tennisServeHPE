@@ -1,8 +1,4 @@
-"""BlazePose 33-landmark topology constants.
-
-Kept in one place so every stage (extraction, processing, evaluation,
-visualization) refers to the same ids and names.
-"""
+"""BlazePose 33-landmark topology constants."""
 
 # Index position in this list equals the BlazePose landmark id.
 LANDMARK_NAMES = [
@@ -26,9 +22,7 @@ LANDMARK_NAMES = [
 
 NUM_LANDMARKS = len(LANDMARK_NAMES)
 
-# Skeleton edges as (start_id, end_id), matching
-# mediapipe.tasks.python.vision.pose_landmarker.PoseLandmarksConnections.
-# Hardcoded so visualization and tests do not need mediapipe imported.
+# Skeleton edges as (start_id, end_id), matching mediapipe.tasks.python.vision.pose_landmarker.PoseLandmarksConnections.
 POSE_CONNECTIONS = [
     (0, 1), (1, 2), (2, 3), (3, 7), (0, 4), (4, 5), (5, 6), (6, 8),
     (9, 10),
@@ -39,8 +33,7 @@ POSE_CONNECTIONS = [
     (24, 26), (26, 28), (28, 30), (30, 32), (28, 32),
 ]
 
-# Landmarks most relevant for serve kinematics; used by later stages and by
-# sanity checks that focus on the hitting arm.
+# Landmarks most relevant for serve kinematics
 SERVE_KEY_LANDMARKS = [
     "left_shoulder", "right_shoulder",
     "left_elbow", "right_elbow",

@@ -1,15 +1,3 @@
-"""Stage 1d: diagnostic overlay rendering.
-
-Draws the extracted skeleton back onto the source frames so tracking quality
-can be judged visually. Landmark dots are colour-coded by visibility score
-(green = visible, red = likely occluded); a HUD line shows frame index,
-time and detection state. Frames where the racket arm turns red, or where
-"NO POSE" appears, are the frames to distrust in later stages.
-
-Pure image-in / image-out functions plus a thin video-writer wrapper, so the
-drawing logic is unit-testable without any video file.
-"""
-
 from typing import List, Tuple
 
 import cv2

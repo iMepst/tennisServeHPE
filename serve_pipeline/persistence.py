@@ -1,21 +1,3 @@
-"""Stage 1c: persistence of the raw landmark time series.
-
-Writes the raw extraction output row by row while the video is processed, so
-a crash mid-video still leaves a valid, truncated CSV. Values are stored
-exactly as the model produced them: no smoothing, no interpolation, no
-coordinate conversion. Later stages read this file and make their own
-processing decisions, which keeps error attribution per stage possible.
-
-CSV schema (long format, one row per frame x landmark):
-
-    frame, time_s, landmark_id, landmark_name,
-    x, y, z, visibility, presence,
-    world_x, world_y, world_z
-
-Frames without a detection still get their 33 rows with empty value fields,
-so frame indexing stays dense and gaps are explicit in the data.
-"""
-
 import csv
 import json
 import math
@@ -34,10 +16,10 @@ CSV_HEADER = [
     "world_x", "world_y", "world_z",
 ]
 
-# Gated series (Stage 2a): raw schema plus the gating decision.
+# Gated series: raw schema plus the gating decision.
 GATED_CSV_HEADER = CSV_HEADER + ["valid", "mask_reason"]
 
-# Filtered series (Stage 2b): gated schema plus the processing flags.
+# Filtered series: gated schema plus the processing flags.
 FILTERED_CSV_HEADER = GATED_CSV_HEADER + [
     "interpolated", "reliable", "filtered",
 ]
@@ -83,11 +65,7 @@ class LandmarkCsvWriter:
 
 
 def read_landmarks_csv(path: str) -> List[FramePose]:
-    """Reads a landmarks CSV back into a list of FramePose objects.
-
-    Empty value fields (undetected frames) come back as detected=False with
-    an empty landmark list, mirroring exactly what the extractor produced.
-    """
+    """Reads a landmarks CSV back into a list of FramePose objects."""
     frames: Dict[int, FramePose] = {}
     with open(path, newline="") as f:
         reader = csv.DictReader(f)
@@ -175,12 +153,7 @@ def _bit(flag: bool) -> int:
 
 
 def write_filtered_csv(path: str, frames: List[ProcessedFrame]) -> None:
-    """Persist the Stage 2b filtered series (gated schema + processing flags).
-
-    Coordinate columns hold the filtered/interpolated values; ``valid`` and
-    ``mask_reason`` still report the original Stage 2a gating decision, so the
-    filtered artifact remains self-explaining about what was reconstructed.
-    """
+    """Persist the Stage 2b filtered series (gated schema + processing flags)."""
     with open(path, "w", newline="") as f:
         writer = csv.writer(f)
         writer.writerow(FILTERED_CSV_HEADER)
@@ -243,14 +216,7 @@ def read_metadata(path: str) -> Dict[str, Any]:
 
 
 def git_commit_hash() -> Optional[str]:
-    """Return the producing commit hash for provenance in metadata.
-
-    Appends ``-dirty`` when the working tree has uncommitted changes, so a
-    run made from an unclean checkout is not silently attributed to a clean
-    commit. Returns ``None`` outside a git repository or when git is
-    unavailable, rather than raising: provenance is best-effort metadata and
-    must never abort a run.
-    """
+    """Return the producing commit hash for provenance in metadata."""
     repo_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
     def _git(args: List[str]) -> str:

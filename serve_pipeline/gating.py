@@ -1,23 +1,3 @@
-"""Stage 2a: quality gating and gap handling.
-
-Reads the raw Stage 1 landmark series and marks each sample valid or invalid.
-A sample (one frame x one landmark) is invalid when its frame carried no
-detection at all (Stage 1 wrote empty values) or when the landmark's
-``visibility`` falls below a threshold. This is the "treat low-visibility
-values as missing, not as data" rule from the methodology, materialized as an
-explicit per-sample flag so later stages can respect it and every error stays
-attributable to this stage.
-
-Only gating happens here. What to *do* about the resulting gaps -- interpolate
-short ones, mark long ones unreliable, smooth the series -- is Stage 2b and is
-deliberately not decided in this module.
-
-Keep-and-flag: masked samples keep their raw coordinate values; ``valid`` is
-the authoritative "treat as missing" signal that later stages must honor. This
-keeps the gated artifact self-explaining (you can see *why* a sample was
-dropped) without discarding the evidence for the decision.
-"""
-
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
@@ -58,12 +38,7 @@ class GatedFrame:
 
 def gate_frames(frames: List[FramePose],
                 visibility_threshold: float) -> List[GatedFrame]:
-    """Apply visibility gating to a raw landmark series.
-
-    Output is dense: every frame yields exactly ``NUM_LANDMARKS`` samples in
-    landmark-id order, so undetected frames and detection gaps stay explicit
-    and frame<->row alignment is preserved, mirroring the Stage 1 schema.
-    """
+    """Apply visibility gating to a raw landmark series."""
     gated: List[GatedFrame] = []
     for fp in frames:
         by_id = {obs.landmark_id: obs for obs in fp.landmarks}

@@ -1,23 +1,3 @@
-"""Stage 2b, part 2: low-pass filtering of the coordinate series.
-
-Applies a zero-phase low-pass filter to the (interpolated) spatial channels so
-angular velocities can later be obtained by differentiation without amplifying
-per-frame jitter. Filtering runs *per landmark, per contiguous reliable
-segment*: long gaps (marked unreliable in ``interpolation.py``) split a
-landmark's trajectory into independent segments, because a zero-phase filter
-must not smear real values across a hole it cannot see through.
-
-Primary filter: a Butterworth low-pass applied forward-and-backward via
-``scipy.signal.filtfilt`` -- zero phase shift, so event frames do not move.
-Documented alternative: Savitzky-Golay. The choice of filter and cut-off is an
-empirical decision made on raw-versus-filtered plots (methodology 5.2); this
-module only provides the mechanism and records exactly what was applied.
-
-A segment too short for the chosen filter is left unfiltered (its samples keep
-their interpolated/raw values and ``filtered`` stays False) rather than being
-distorted by aggressive edge padding.
-"""
-
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
@@ -96,12 +76,7 @@ def _filter_segment(values: np.ndarray, fps: float,
 
 def filter_series(frames: List[ProcessedFrame], fps: float,
                   cfg: FilterConfig) -> Dict[str, Any]:
-    """Filter reliable segments in place; flag filtered samples.
-
-    Mutates ``frames``: on each reliable, long-enough segment the spatial
-    coordinate channels are replaced by their filtered values and the samples'
-    ``filtered`` flag is set. Returns a summary for the metadata JSON.
-    """
+    """Filter reliable segments in place; flag filtered samples."""
     min_len = _min_segment_length(cfg)
     n_filtered = 0
     n_reliable = 0

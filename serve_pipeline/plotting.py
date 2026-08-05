@@ -1,20 +1,3 @@
-"""Stage 2 diagnostic plotting: the visual sanity checks for gating and
-filtering.
-
-Two checks live here:
-
-- ``plot_raw_vs_gated`` (Stage 2a): per landmark, the visibility trace with the
-  gating threshold and the masked spans shaded -- grey for undetected, red for
-  low visibility. Gating should fire where the Stage 1 overlay looked
-  unreliable and nowhere in the serve itself.
-- ``plot_raw_vs_filtered`` (Stage 2b): per landmark, one coordinate channel
-  before filtering versus one or more filtered variants, with unreliable spans
-  shaded. This is the plot the filter type/cut-off decision is made from
-  (methodology 5.2).
-
-Uses the Agg backend and writes a PNG; no interactive display.
-"""
-
 from typing import Any, List, Optional, Sequence, Tuple
 
 from .gating import GatedFrame, MASK_UNDETECTED
@@ -138,14 +121,7 @@ def plot_raw_vs_filtered(
         landmark_names: Sequence[str], coord: str, path: str,
         title: Optional[str] = None,
         time_window: Optional[Tuple[float, float]] = None) -> str:
-    """Overlay the pre-filter signal and filtered variants for one channel.
-
-    ``pre_filter`` is the interpolated (un-smoothed) series; ``variants`` maps
-    a label (e.g. a candidate cut-off) to a filtered series. Unreliable spans
-    are shaded so the reader can see where no variant should be trusted.
-    ``time_window`` optionally zooms the x-axis (and auto-scales y to it) so a
-    brief event like the serve is not lost inside a long clip.
-    """
+    """Overlay the pre-filter signal and filtered variants for one channel."""
     name_to_id = {n: i for i, n in enumerate(LANDMARK_NAMES)}
     times = [f.time_s for f in pre_filter]
     pad = _typical_dt(times) / 2.0
@@ -209,17 +185,7 @@ def plot_velocity_compare(
         landmark_names: Sequence[str], coord: str, fps: float, path: str,
         title: Optional[str] = None,
         time_window: Optional[Tuple[float, float]] = None) -> str:
-    """Filter-selection diagnostic: velocity of pre-filter vs variants.
-
-    Velocity (central difference of ``coord``, units/s) is where a low-pass
-    cut-off actually shows: the pre-filter trace exposes per-frame jitter, and
-    a lower cut-off trades a rounded peak for a cleaner signal. This is the
-    discriminating view for the filter decision (methodology 5.2).
-
-    Scope note: this is a *coordinate*-velocity diagnostic used only to choose
-    the cut-off. It is not the joint angular velocity that Stage 2c computes
-    and persists (§5.3), and nothing here is written to disk beyond the plot.
-    """
+    """Filter-selection diagnostic: velocity of pre-filter vs variants."""
     name_to_id = {n: i for i, n in enumerate(LANDMARK_NAMES)}
     times = [f.time_s for f in pre_filter]
     pad = _typical_dt(times) / 2.0

@@ -1,25 +1,4 @@
-"""Stage 2 orchestrator: gating (2a) and filtering/interpolation (2b).
-
-Each sub-step reads only its predecessor's persisted output (the model is
-never re-run) and writes into the clip's ``stage2/`` folder with sub-step
-named artifacts so the steps never collide:
-
-    2a  gating:     gated.csv     gating_meta.json     gating_qc.png
-    2b  filtering:  filtered.csv  filtering_meta.json  filtering_qc.png
-                    filtering_compare.png  (candidate-cut-off comparison)
-
-Stage 2a applies visibility gating and gap statistics. Stage 2b interpolates
-short gaps (flagging every filled sample), marks long/edge gaps unreliable,
-and low-pass filters the reliable segments. The filter type and cut-off are an
-empirical decision made from ``filtering_compare.png`` (methodology 5.2); the
-CLI defaults produce a provisional filtered series plus that comparison.
-
-Usage:
-    python -m serve_pipeline.stage2_process 2a \
-        results/serve_01/stage1/landmarks.csv
-    python -m serve_pipeline.stage2_process 2b \
-        results/serve_01/stage2/gated.csv --cutoff-hz 6
-"""
+"""Stage 2 orchestrator: gating and filtering/interpolation."""
 
 import argparse
 import datetime
@@ -64,21 +43,14 @@ logger = logging.getLogger(__name__)
 DEFAULT_VISIBILITY_THRESHOLD = 0.5
 DEFAULT_MAX_GAP_FRAMES = 3
 DEFAULT_FILTER_ORDER = 4
-# Decided in Sprint 2 from filtering_velocity_compare.png (methodology 5.2):
-# 5 Hz preserves the racket-arm velocity peaks while removing the >5 Hz jitter
-# that 8 Hz leaves in, ahead of Stage 3 differentiation (3 Hz clipped peaks).
 DEFAULT_CUTOFF_HZ = 5.0
-# Butterworth cut-offs overlaid in the comparison plot for the filter decision.
 CANDIDATE_CUTOFFS_HZ = [3.0, 5.0, 8.0]
-# Channel shown in the raw-vs-filtered plot (image vertical: the serve swing).
 DEFAULT_QC_COORD = "y"
-# Half-width of the auto-zoom window centred on peak racket motion.
 QC_WINDOW_PAD_S = 2.5
 
 GATING_META_JSON = "gating_meta.json"
 FILTERING_META_JSON = "filtering_meta.json"
 
-# The filter settled on in Sprint 2; a run matching it is recorded "decided".
 DECIDED_FILTER = FilterConfig(
     kind=KIND_BUTTERWORTH, order=DEFAULT_FILTER_ORDER,
     cutoff_hz=DEFAULT_CUTOFF_HZ)
@@ -194,15 +166,7 @@ def _resolve_fps_stage2a(meta_path: Optional[str],
 def _peak_motion_window(
         frames: List[ProcessedFrame], landmark_names: List[str], coord: str,
         pad_s: float = QC_WINDOW_PAD_S) -> Optional[Tuple[float, float]]:
-    """Time window centred on the swing, as a serve-proxy for the plot zoom.
-
-    Picks the QC landmark with the largest *reliable* excursion in ``coord``
-    (the serving wrist travels farthest), then centres on that landmark's peak
-    reliable frame-to-frame velocity. Restricting to reliable samples keeps the
-    window off the post-serve turn-away, where masked landmarks jump around.
-
-    A heuristic for plotting only; true phase segmentation is Stage 3.
-    """
+    """Time window centred on the swing, as a serve-proxy for the plot zoom."""
     def _reliable_vals(lm_id: int) -> List[Tuple[float, float]]:
         out = []
         for f in frames:

@@ -1,25 +1,3 @@
-"""Stage 1b: pose extraction with BlazePose via the MediaPipe Tasks API.
-
-The legacy ``mp.solutions.pose`` API was removed from mediapipe >= 0.10.x,
-so this wraps ``PoseLandmarker`` in VIDEO running mode instead. VIDEO mode
-uses temporal tracking between frames, which matters for the fast phases of
-the serve.
-
-Two coordinate systems are extracted per landmark and both are persisted:
-
-  image landmarks  x, y normalized to image width/height (z: relative depth,
-                   roughly hip-scaled) -- used for the overlay and any
-                   pixel-space checks.
-  world landmarks  metric 3D coordinates in meters, origin at the hip
-                   center -- the right input for joint-angle computation in
-                   later stages because they are camera-projection free.
-
-Each landmark carries a ``visibility`` score (is it likely visible, i.e. not
-occluded) and a ``presence`` score (is it likely inside the frame). Low
-visibility on the racket arm during the trophy position / contact phase is
-exactly what the overlay video is meant to reveal.
-"""
-
 from dataclasses import dataclass
 from typing import Any, Dict, List
 
@@ -58,11 +36,7 @@ class FramePose:
 
 
 class PoseExtractor:
-    """Runs PoseLandmarker over successive frames of one video.
-
-    One instance per video: VIDEO running mode requires strictly increasing
-    timestamps, so instances must not be reused across videos.
-    """
+    """Runs PoseLandmarker over successive frames of one video."""
 
     def __init__(self, model_path: str,
                  min_detection_confidence: float = 0.5,

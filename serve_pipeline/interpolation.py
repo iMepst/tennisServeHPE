@@ -1,25 +1,3 @@
-"""Stage 2b, part 1: short-gap interpolation with per-sample flagging.
-
-Reads the Stage 2a gated series and fills *short* invalid runs by linear
-interpolation of the spatial coordinates, so downstream kinematics has a
-continuous signal to differentiate. Every filled sample is flagged
-``interpolated`` and the methodology's reliability rule is materialized as a
-per-sample ``reliable`` flag:
-
-- **Short interior gaps** (length <= ``max_gap_frames``, bounded by a valid
-  sample on both sides): interpolated; ``interpolated`` and ``reliable`` set.
-- **Long gaps** (length > ``max_gap_frames``) and **edge gaps** (no valid
-  neighbour on one side, so nothing to interpolate from): left untouched,
-  ``reliable=False`` -- the "affected phases are marked unreliable" rule.
-
-Only the six spatial coordinates are interpolated. ``visibility`` and
-``presence`` are quality signals, not trajectory, and are carried through
-unchanged (a filled sample keeps its low/None visibility, which is honest:
-the coordinate is reconstructed, the model's confidence in it is not).
-
-No smoothing happens here; low-pass filtering is part 2 (``filtering.py``).
-"""
-
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
@@ -74,12 +52,7 @@ def _invalid_runs(valid: List[bool]) -> List[tuple]:
 
 def interpolate_gaps(gated: List[GatedFrame],
                      max_gap_frames: int) -> List[ProcessedFrame]:
-    """Fill short interior gaps; flag interpolated and unreliable samples.
-
-    ``max_gap_frames`` is the longest invalid run (in frames) that is still
-    interpolated; longer runs are left as gaps and marked unreliable. The
-    threshold is a Stage 2b parameter and is recorded in the metadata.
-    """
+    """Fill short interior gaps; flag interpolated and unreliable samples."""
     n = len(gated)
     # Seed every sample from its gated counterpart: a valid sample is reliable
     # and un-interpolated; an invalid one starts unreliable until filled below.

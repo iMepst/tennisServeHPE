@@ -1,12 +1,3 @@
-"""Stage 1a: video ingestion.
-
-Wraps OpenCV video decoding behind a small iterator interface so the rest of
-the pipeline never touches cv2.VideoCapture directly. Yields BGR frames
-together with their index and timestamp; timestamps are derived from the
-container FPS, which is also what later stages must use to convert frame
-indices back to time.
-"""
-
 from dataclasses import dataclass, asdict
 import os
 from typing import Any, Dict, Iterator
@@ -40,14 +31,7 @@ class Frame:
 
 
 class VideoReader:
-    """Iterates a video file frame by frame.
-
-    Usage:
-        with VideoReader(path) as reader:
-            print(reader.metadata)
-            for frame in reader:
-                ...
-    """
+    """Iterates a video file frame by frame."""
 
     def __init__(self, path: str) -> None:
         if not os.path.isfile(path):

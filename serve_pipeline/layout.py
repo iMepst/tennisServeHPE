@@ -1,20 +1,3 @@
-"""Output directory convention shared by every pipeline stage.
-
-Each stage writes into  <results_root>/<clip>/<stage>/  so a clip's full
-Stage 1..3 story lives under one folder and stages never collide. Filenames
-inside a stage folder are short and fixed (``landmarks.csv``, ``meta.json``,
-...); the clip identity is carried by the directory, not the filename.
-
-    results/
-      serve_01/
-        stage1/  landmarks.csv  meta.json  overlay.mp4  contact_sheet.png
-        stage2/  gated.csv      meta.json  gating_qc.png
-
-Centralising the convention here keeps it out of the individual stages: a
-stage asks for its output directory and the input-clip name rather than
-hard-coding path strings.
-"""
-
 import os
 
 DEFAULT_RESULTS_ROOT = "results"

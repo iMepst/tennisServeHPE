@@ -1,21 +1,4 @@
-"""Stage 1 orchestrator: video -> raw landmark CSV + meta JSON + overlay MP4.
-
-Wires ingestion, pose extraction, persistence and visualization together.
-Contains no domain logic of its own; everything it produces is raw model
-output plus enough metadata to interpret it. Later stages read the CSV/JSON
-only and never re-run the model.
-
-Usage:
-    python -m serve_pipeline.stage1_extract path/to/serve.mp4
-    python -m serve_pipeline.stage1_extract serve.mp4 \
-        --outdir results --max-frames 200
-
-Outputs in  <outdir>/<clip>/stage1/  (clip = the video's basename):
-    landmarks.csv       raw time series (see persistence.CSV_HEADER)
-    meta.json           video + model config + detection statistics
-    overlay.mp4         skeleton overlay, landmark colour = visibility
-    contact_sheet.png   evenly spaced overlay frames as one image
-"""
+"""Stage 1 orchestrator: video -> raw landmark CSV + meta JSON + overlay MP4."""
 
 import argparse
 import datetime

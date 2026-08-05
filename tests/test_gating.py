@@ -1,5 +1,3 @@
-"""Unit tests for Stage 2a gating and gap handling (no model required)."""
-
 from typing import Dict, Optional
 
 from serve_pipeline.gating import (

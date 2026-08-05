@@ -1,5 +1,3 @@
-"""Unit tests for Stage 2b short-gap interpolation and reliability flags."""
-
 from typing import List, Optional
 
 from serve_pipeline.gating import (

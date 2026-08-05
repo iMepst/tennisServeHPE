@@ -1,9 +1,3 @@
-"""Integration tests for the PoseExtractor.
-
-These need the downloaded .task model file; they are skipped when it is
-missing so the pure unit tests stay runnable everywhere.
-"""
-
 import os
 
 import cv2

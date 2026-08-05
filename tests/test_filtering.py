@@ -1,10 +1,3 @@
-"""Unit tests for Stage 2b low-pass filtering and the filtered CSV round-trip.
-
-Includes the methodology's required check: a known low-frequency sine survives
-filtering (amplitude preserved) while a high-frequency sine is strongly
-attenuated, with the attenuation documented against the Butterworth response.
-"""
-
 import math
 from pathlib import Path
 from typing import List

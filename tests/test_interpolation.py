@@ -24,12 +24,11 @@ def _sample(lm_id: int, valid: bool, val: Optional[float],
             undetected: bool = False) -> GatedSample:
     if undetected:
         return GatedSample(lm_id, False, MASK_UNDETECTED,
-                           None, None, None, None, None, None)
+                           None, None, None)
     return GatedSample(
         lm_id, valid, MASK_OK if valid else MASK_LOW_VISIBILITY,
         x=val, y=val,
         visibility=1.0 if valid else 0.1,
-        world_x=val, world_y=val, world_z=val,
     )
 
 

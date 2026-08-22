@@ -9,8 +9,7 @@ MASK_UNDETECTED = "undetected"
 MASK_LOW_VISIBILITY = "low_visibility"
 
 # Value fields carried through from the raw series (kept even when masked).
-_VALUE_FIELDS = ["x", "y", "visibility",
-                 "world_x", "world_y", "world_z"]
+_VALUE_FIELDS = ["x", "y", "visibility"]
 
 
 @dataclass
@@ -22,9 +21,6 @@ class GatedSample:
     x: Optional[float]
     y: Optional[float]
     visibility: Optional[float]
-    world_x: Optional[float]
-    world_y: Optional[float]
-    world_z: Optional[float]
 
 
 @dataclass
@@ -48,7 +44,6 @@ def gate_frames(frames: List[FramePose],
                     landmark_id=lm_id, valid=False,
                     mask_reason=MASK_UNDETECTED,
                     x=None, y=None, visibility=None,
-                    world_x=None, world_y=None, world_z=None,
                 ))
                 continue
             valid = obs.visibility >= visibility_threshold
@@ -57,7 +52,6 @@ def gate_frames(frames: List[FramePose],
                 mask_reason=MASK_OK if valid else MASK_LOW_VISIBILITY,
                 x=obs.x, y=obs.y,
                 visibility=obs.visibility,
-                world_x=obs.world_x, world_y=obs.world_y, world_z=obs.world_z,
             ))
         gated.append(GatedFrame(frame_index=fp.frame_index,
                                 time_s=fp.time_s, samples=samples))

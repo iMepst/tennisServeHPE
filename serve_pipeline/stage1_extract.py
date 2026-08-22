@@ -28,9 +28,8 @@ DEFAULT_MODEL = os.path.join(
 )
 
 COORDINATE_NOTE = (
-    "x,y normalized by image width/height (multiply to get pixels); "
-    "world_x/y/z are meters with origin at the hip center and are the "
-    "preferred input for joint angles."
+    "x,y normalized by image width/height (multiply by the frame size "
+    "to get pixels); angles are read in the image plane."
 )
 
 

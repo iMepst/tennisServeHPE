@@ -44,9 +44,6 @@ def test_person_detected_with_valid_ranges(person_image):
         assert 0.0 <= obs.visibility <= 1.0
         assert -0.5 <= obs.x <= 1.5   # normalized, may exceed frame slightly
         assert -0.5 <= obs.y <= 1.5
-        assert abs(obs.world_x) < 3.0  # meters from hip center
-        assert abs(obs.world_y) < 3.0
-        assert abs(obs.world_z) < 3.0
 
 
 def test_timestamps_strictly_increasing_at_high_fps():

@@ -20,9 +20,6 @@ class LandmarkObservation:
     x: float           # normalized [~0..1] by image width
     y: float           # normalized [~0..1] by image height
     visibility: float  # [0..1], low = likely occluded
-    world_x: float     # meters, origin at hip center
-    world_y: float
-    world_z: float
 
 
 @dataclass
@@ -83,7 +80,6 @@ class PoseExtractor:
                              detected=False, landmarks=[])
 
         image_lms = result.pose_landmarks[0]
-        world_lms = result.pose_world_landmarks[0]
         if len(image_lms) != NUM_LANDMARKS:
             raise RuntimeError(
                 f"Expected {NUM_LANDMARKS} landmarks, got {len(image_lms)}"
@@ -94,9 +90,8 @@ class PoseExtractor:
                 landmark_id=i,
                 x=lm.x, y=lm.y,
                 visibility=lm.visibility,
-                world_x=wlm.x, world_y=wlm.y, world_z=wlm.z,
             )
-            for i, (lm, wlm) in enumerate(zip(image_lms, world_lms))
+            for i, lm in enumerate(image_lms)
         ]
         return FramePose(frame_index=frame_index, time_s=time_s,
                          detected=True, landmarks=observations)

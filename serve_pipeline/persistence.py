@@ -13,7 +13,6 @@ from .pose_extraction import FramePose, LandmarkObservation
 CSV_HEADER = [
     "frame", "time_s", "landmark_id", "landmark_name",
     "x", "y", "visibility",
-    "world_x", "world_y", "world_z",
 ]
 
 # Gated series: raw schema plus the gating decision.
@@ -24,8 +23,7 @@ FILTERED_CSV_HEADER = GATED_CSV_HEADER + [
     "interpolated", "reliable", "filtered",
 ]
 
-_VALUE_FIELDS = ["x", "y", "visibility",
-                 "world_x", "world_y", "world_z"]
+_VALUE_FIELDS = ["x", "y", "visibility"]
 
 
 class LandmarkCsvWriter:

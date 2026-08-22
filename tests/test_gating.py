@@ -12,8 +12,7 @@ from serve_pipeline.persistence import read_gated_csv, write_gated_csv
 from serve_pipeline.pose_extraction import FramePose, LandmarkObservation
 
 FPS = 25.0
-_VALUE_FIELDS = ["x", "y", "visibility",
-                 "world_x", "world_y", "world_z"]
+_VALUE_FIELDS = ["x", "y", "visibility"]
 
 
 def _detected(idx: int,
@@ -25,7 +24,6 @@ def _detected(idx: int,
             landmark_id=i,
             x=0.1 + i, y=0.2 + i,
             visibility=vis_overrides.get(i, 1.0),
-            world_x=0.4 + i, world_y=0.5 + i, world_z=0.6 + i,
         )
         for i in range(NUM_LANDMARKS)
     ]
@@ -67,7 +65,7 @@ def test_keep_and_flag_preserves_masked_values() -> None:
     # values are kept, not blanked
     assert masked.visibility == 0.1
     assert masked.x == 0.1 + 16
-    assert masked.world_z == 0.6 + 16
+    assert masked.y == 0.2 + 16
 
 
 def test_undetected_frame_masks_all_with_none_values() -> None:

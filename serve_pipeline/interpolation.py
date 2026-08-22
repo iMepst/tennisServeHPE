@@ -5,7 +5,7 @@ from .gating import GatedFrame
 from .landmarks import LANDMARK_NAMES, NUM_LANDMARKS
 
 # Spatial channels that get interpolated (and later filtered).
-COORD_FIELDS = ["x", "y", "z", "world_x", "world_y", "world_z"]
+COORD_FIELDS = ["x", "y", "world_x", "world_y", "world_z"]
 # Quality channels carried through untouched.
 PASS_FIELDS = ["visibility"]
 
@@ -20,7 +20,6 @@ class ProcessedSample:
     filtered: bool       # low-pass filter was applied (set in filtering.py)
     x: Optional[float]
     y: Optional[float]
-    z: Optional[float]
     visibility: Optional[float]
     world_x: Optional[float]
     world_y: Optional[float]
@@ -62,7 +61,7 @@ def interpolate_gaps(gated: List[GatedFrame],
                 landmark_id=s.landmark_id, valid=s.valid,
                 mask_reason=s.mask_reason, interpolated=False,
                 reliable=s.valid, filtered=False,
-                x=s.x, y=s.y, z=s.z,
+                x=s.x, y=s.y,
                 visibility=s.visibility,
                 world_x=s.world_x, world_y=s.world_y, world_z=s.world_z,
             )

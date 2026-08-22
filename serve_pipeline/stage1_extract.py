@@ -28,8 +28,8 @@ DEFAULT_MODEL = os.path.join(
 )
 
 COORDINATE_NOTE = (
-    "x,y normalized by image width/height (multiply by the frame size "
-    "to get pixels); angles are read in the image plane."
+    "Per landmark only normalized image-plane x, y and visibility are "
+    "kept; rescaling to pixels happens later, in the angle computation."
 )
 
 

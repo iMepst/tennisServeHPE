@@ -75,3 +75,52 @@ class PipelineConfig:
 
     # Monte Carlo sample count and RNG seed (Sec. 2b / 3a).
     mc_samples: int = 10000
+    seed: int = 42
+
+
+@dataclass
+class ClipParams:
+    """Manually recorded parameters of one recording.
+
+    Stages 3 and 4 cannot run without them: they decide which wrist
+    marks ball impact, which leg the knee angle is read from, and which
+    of the two plane-bound trophy criteria the viewpoint supports
+    (pipeline_spec.md, header; rule_base_spec.md Section 4).
+    """
+
+    # Which arm holds the racket. Selects the wrist whose y-minimum
+    # locates ball impact (Stage 3) and the shoulder/elbow/wrist side
+    # for elbow flexion and shoulder elevation (Stage 4). Anatomical,
+    # i.e. body-relative: "left" means the player's left arm regardless
+    # of where the camera stands.
+    serving_arm: str  # "left" | "right"
+
+    # Which leg stands in front in the stance. Selects the
+    # hip/knee/ankle triplet for front knee flexion (Stage 4).
+    # Anatomical, like serving_arm.
+    front_leg: str  # "left" | "right"
+
+    # Which body plane the camera faces. Decides the one core trophy
+    # criterion that is read cleanly: "frontal" -> trunk inclination,
+    # "sagittal" -> front knee flexion (rule_base_spec.md Section 4.1).
+    # "frontal" covers both front and back (posterior) views — back-view
+    # clips are accepted (common in scraped footage) and need no
+    # mirroring, since all angles are unsigned magnitudes.
+    camera_plane: str  # "frontal" | "sagittal"
+
+    # Where the camera stands within that plane: "front"/"back" for
+    # frontal clips, "left"/"right" for sagittal clips. Provenance only:
+    # it documents the recording setup but does not change which
+    # criteria are available.
+    view_direction: str
+
+    # Frame rate of the clip. Converts the 120 ms gap bound to frames
+    # and sets the Nyquist frequency for the per-clip filter design
+    # (pipeline_spec.md Stage 2).
+    fps: float
+
+    # Frame size in pixels. Rescales normalized landmark coordinates to
+    # pixels before any angle is formed, otherwise the aspect ratio
+    # distorts every angle (rule_base_spec.md Section 0).
+    frame_width: int
+    frame_height: int

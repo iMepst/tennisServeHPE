@@ -12,7 +12,7 @@ from .pose_extraction import FramePose, LandmarkObservation
 
 CSV_HEADER = [
     "frame", "time_s", "landmark_id", "landmark_name",
-    "x", "y", "z", "visibility", "presence",
+    "x", "y", "z", "visibility",
     "world_x", "world_y", "world_z",
 ]
 
@@ -24,7 +24,7 @@ FILTERED_CSV_HEADER = GATED_CSV_HEADER + [
     "interpolated", "reliable", "filtered",
 ]
 
-_VALUE_FIELDS = ["x", "y", "z", "visibility", "presence",
+_VALUE_FIELDS = ["x", "y", "z", "visibility",
                  "world_x", "world_y", "world_z"]
 
 

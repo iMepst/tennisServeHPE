@@ -21,7 +21,6 @@ class LandmarkObservation:
     y: float           # normalized [~0..1] by image height
     z: float           # normalized relative depth (image landmark z)
     visibility: float  # [0..1], low = likely occluded
-    presence: float    # [0..1], low = likely outside the frame
     world_x: float     # meters, origin at hip center
     world_y: float
     world_z: float
@@ -95,7 +94,7 @@ class PoseExtractor:
             LandmarkObservation(
                 landmark_id=i,
                 x=lm.x, y=lm.y, z=lm.z,
-                visibility=lm.visibility, presence=lm.presence,
+                visibility=lm.visibility,
                 world_x=wlm.x, world_y=wlm.y, world_z=wlm.z,
             )
             for i, (lm, wlm) in enumerate(zip(image_lms, world_lms))

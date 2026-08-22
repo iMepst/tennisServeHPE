@@ -18,7 +18,7 @@ def make_frame_pose(frame_index=0, time_s=0.0, detected=True, seed=None):
             landmark_id=i,
             x=rng.uniform(0.2, 0.8), y=rng.uniform(0.1, 0.95),
             z=rng.uniform(-1.0, 1.0),
-            visibility=rng.uniform(0.0, 1.0), presence=rng.uniform(0.5, 1.0),
+            visibility=rng.uniform(0.0, 1.0),
             world_x=rng.uniform(-1.0, 1.0), world_y=rng.uniform(-1.0, 1.0),
             world_z=rng.uniform(-1.0, 1.0),
         )

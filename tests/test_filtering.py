@@ -15,7 +15,7 @@ LM = 16
 FPS = 25.0
 CUTOFF_HZ = 6.0
 ORDER = 4
-_VALUE_FIELDS = ["x", "y", "z", "visibility", "presence",
+_VALUE_FIELDS = ["x", "y", "z", "visibility",
                  "world_x", "world_y", "world_z"]
 
 
@@ -23,7 +23,7 @@ def _psample(lm_id: int, val: float, reliable: bool = True) -> ProcessedSample:
     return ProcessedSample(
         landmark_id=lm_id, valid=True, mask_reason="ok",
         interpolated=False, reliable=reliable, filtered=False,
-        x=val, y=val, z=val, visibility=1.0, presence=0.9,
+        x=val, y=val, z=val, visibility=1.0,
         world_x=val, world_y=val, world_z=val)
 
 
@@ -104,7 +104,7 @@ def test_filtered_csv_roundtrip(tmp_path: Path) -> None:
                 s = ProcessedSample(
                     lm, valid=False, mask_reason="undetected",
                     interpolated=False, reliable=False, filtered=False,
-                    x=None, y=None, z=None, visibility=None, presence=None,
+                    x=None, y=None, z=None, visibility=None,
                     world_x=None, world_y=None, world_z=None)
             samples.append(s)
         frames.append(ProcessedFrame(i, i / FPS, samples))

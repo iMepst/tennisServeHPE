@@ -42,7 +42,6 @@ def test_person_detected_with_valid_ranges(person_image):
     assert len(fp.landmarks) == NUM_LANDMARKS
     for obs in fp.landmarks:
         assert 0.0 <= obs.visibility <= 1.0
-        assert 0.0 <= obs.presence <= 1.0
         assert -0.5 <= obs.x <= 1.5   # normalized, may exceed frame slightly
         assert -0.5 <= obs.y <= 1.5
         assert abs(obs.world_x) < 3.0  # meters from hip center

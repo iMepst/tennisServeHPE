@@ -36,7 +36,7 @@ def test_csv_roundtrip(tmp_path):
         assert len(rest.landmarks) == len(orig.landmarks)
         for o, r in zip(orig.landmarks, rest.landmarks):
             assert r.landmark_id == o.landmark_id
-            for field in ("x", "y", "z", "visibility", "presence",
+            for field in ("x", "y", "z", "visibility",
                           "world_x", "world_y", "world_z"):
                 assert getattr(r, field) == pytest.approx(
                     getattr(o, field), abs=1e-6)

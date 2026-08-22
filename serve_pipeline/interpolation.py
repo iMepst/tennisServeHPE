@@ -7,7 +7,7 @@ from .landmarks import LANDMARK_NAMES, NUM_LANDMARKS
 # Spatial channels that get interpolated (and later filtered).
 COORD_FIELDS = ["x", "y", "z", "world_x", "world_y", "world_z"]
 # Quality channels carried through untouched.
-PASS_FIELDS = ["visibility", "presence"]
+PASS_FIELDS = ["visibility"]
 
 
 @dataclass
@@ -22,7 +22,6 @@ class ProcessedSample:
     y: Optional[float]
     z: Optional[float]
     visibility: Optional[float]
-    presence: Optional[float]
     world_x: Optional[float]
     world_y: Optional[float]
     world_z: Optional[float]
@@ -64,7 +63,7 @@ def interpolate_gaps(gated: List[GatedFrame],
                 mask_reason=s.mask_reason, interpolated=False,
                 reliable=s.valid, filtered=False,
                 x=s.x, y=s.y, z=s.z,
-                visibility=s.visibility, presence=s.presence,
+                visibility=s.visibility,
                 world_x=s.world_x, world_y=s.world_y, world_z=s.world_z,
             )
             for s in g.samples

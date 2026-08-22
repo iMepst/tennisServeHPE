@@ -1,3 +1,4 @@
+import dataclasses
 import os
 
 import cv2
@@ -5,7 +6,7 @@ import numpy as np
 import pytest
 
 from serve_pipeline.landmarks import NUM_LANDMARKS
-from serve_pipeline.pose_extraction import PoseExtractor
+from serve_pipeline.pose_extraction import LandmarkObservation, PoseExtractor
 from serve_pipeline.stage1_extract import DEFAULT_MODEL
 
 pytestmark = pytest.mark.skipif(
@@ -22,6 +23,12 @@ def person_image():
     if os.path.isfile(path):
         return cv2.imread(path)
     return None
+
+
+def test_observation_carries_only_image_plane_fields():
+    """The 2D operating point: no depth, world, or presence channels."""
+    field_names = [f.name for f in dataclasses.fields(LandmarkObservation)]
+    assert field_names == ["landmark_id", "x", "y", "visibility"]
 
 
 def test_no_person_returns_undetected():

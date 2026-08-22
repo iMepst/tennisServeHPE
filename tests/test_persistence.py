@@ -54,7 +54,8 @@ def test_csv_schema_and_density(tmp_path):
     assert len(rows) == 1 + 2 * NUM_LANDMARKS
     undetected = [r for r in rows[1:] if r[0] == "1"]
     assert len(undetected) == NUM_LANDMARKS
-    assert all(r[4] == "" for r in undetected)  # x column empty
+    # all value columns (x, y, visibility) empty on undetected frames
+    assert all(r[4:] == ["", "", ""] for r in undetected)
 
 
 def test_read_rejects_wrong_schema(tmp_path):

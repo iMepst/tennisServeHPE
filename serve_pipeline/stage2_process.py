@@ -46,14 +46,6 @@ QC_WINDOW_PAD_S = 2.5
 GATING_META_JSON = "gating_meta.json"
 FILTERING_META_JSON = "filtering_meta.json"
 
-DECIDED_FILTER = FilterConfig(
-    order=DEFAULT_FILTER_ORDER, cutoff_hz=DEFAULT_CUTOFF_HZ)
-
-
-def _is_decided_filter(cfg: FilterConfig) -> bool:
-    return (cfg.order == DECIDED_FILTER.order
-            and cfg.cutoff_hz == DECIDED_FILTER.cutoff_hz)
-
 
 # --------------------------------------------------------------------------- #
 # Stage 2a: gating
@@ -263,20 +255,6 @@ def run_stage2b(gated_csv_path: str, outdir: Optional[str] = None,
         },
         "interpolation": interp_stats,
         "filtering": filter_stats,
-        "filter_choice": {
-            "status": ("decided" if _is_decided_filter(filter_cfg)
-                       else "custom"),
-            "rationale": (
-                "5 Hz Butterworth (order 4) preserves the racket-arm velocity "
-                "peaks while removing >5 Hz jitter ahead of Stage 3 "
-                "differentiation; 3 Hz clipped the peaks and 8 Hz barely "
-                "filtered."),
-            "evidence": os.path.basename(
-                paths["filtering_velocity_compare_png"]),
-            "evidence_kind": ("coordinate-velocity diagnostic (not the "
-                              "Stage 2c joint angular velocity)"),
-            "methodology_ref": "5.2",
-        },
         "outputs": {k: os.path.abspath(v) for k, v in paths.items()},
     }
     write_metadata(paths["filtering_meta_json"], meta)

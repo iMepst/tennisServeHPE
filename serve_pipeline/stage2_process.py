@@ -30,7 +30,6 @@ from .plotting import (
     DEFAULT_QC_LANDMARKS,
     plot_raw_vs_filtered,
     plot_raw_vs_gated,
-    plot_velocity_compare,
 )
 from .pose_extraction import FramePose
 
@@ -231,8 +230,6 @@ def run_stage2b(gated_csv_path: str, outdir: Optional[str] = None,
         "filtering_qc_png": os.path.join(outdir, "filtering_qc.png"),
         "filtering_compare_png": os.path.join(outdir,
                                               "filtering_compare.png"),
-        "filtering_velocity_compare_png": os.path.join(
-            outdir, "filtering_velocity_compare.png"),
     }
     write_filtered_csv(paths["filtered_csv"], filtered)
 
@@ -280,13 +277,6 @@ def run_stage2b(gated_csv_path: str, outdir: Optional[str] = None,
         pre_filter, variants, landmarks, qc_coord,
         paths["filtering_compare_png"],
         title=f"Stage 2b Butterworth cut-off comparison ({qc_coord}) - {clip}",
-        time_window=window)
-    # Filter-selection diagnostic (coordinate velocity, not the Stage 2c
-    # angular velocity): the discriminating view for the cut-off decision.
-    plot_velocity_compare(
-        pre_filter, variants, landmarks, qc_coord, fps,
-        paths["filtering_velocity_compare_png"],
-        title=f"Stage 2b filter diagnostic (d{qc_coord}/dt) - {clip}",
         time_window=window)
 
     logger.info("Stage 2b (filtering) complete")

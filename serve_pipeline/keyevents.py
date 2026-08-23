@@ -5,7 +5,7 @@ coordinate series, from body landmarks only (pipeline_spec.md, Stage 3).
 Runs in memory on the Stage 2 output; nothing is persisted here.
 """
 
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 
 import numpy as np
 
@@ -31,3 +31,20 @@ def landmark_y_series(frames: List[ProcessedFrame],
             y[i] = s.y
         original[i] = s.valid and not s.interpolated
     return y, original
+
+
+def guarded_extremum(y: np.ndarray, original: np.ndarray,
+                     kind: str) -> Tuple[Optional[int], str]:
+    """Position of the series extremum, or None with the rejection reason.
+
+    kind is "min" or "max". The search runs over the reliable (non-NaN)
+    values only; guard condition 1 then rejects an extremum that sits on
+    an interpolated sample, because the true extremum may differ from
+    the linear fill.
+    """
+    if not np.isfinite(y).any():
+        return None, "no reliable samples in the series"
+    pos = int(np.nanargmin(y) if kind == "min" else np.nanargmax(y))
+    if not original[pos]:
+        return None, "extremum sits on an interpolated sample"
+    return pos, "ok"

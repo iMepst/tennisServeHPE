@@ -3,7 +3,7 @@ from typing import List, Optional
 import numpy as np
 
 from serve_pipeline.interpolation import ProcessedFrame, ProcessedSample
-from serve_pipeline.keyevents import landmark_y_series
+from serve_pipeline.keyevents import guarded_extremum, landmark_y_series
 from serve_pipeline.landmarks import NAME_TO_ID, NUM_LANDMARKS
 
 FPS = 25.0
@@ -61,3 +61,25 @@ def test_y_series_masks_gaps_and_flags_interpolated() -> None:
     assert np.isnan(y[1])                 # unfilled gap: no usable value
     assert y[2] == 0.3                    # interpolated value is usable...
     assert list(original) == [True, False, False, True]   # ...not original
+
+
+def test_extremum_found_on_original_sample() -> None:
+    y, original = landmark_y_series(_series([0.5, 0.3, 0.2, 0.4]), LM)
+    assert guarded_extremum(y, original, "min") == (2, "ok")
+    assert guarded_extremum(y, original, "max") == (0, "ok")
+
+
+def test_extremum_on_interpolated_sample_is_rejected() -> None:
+    y, original = landmark_y_series(
+        _series([0.5, 0.3, 0.2, 0.4], ["ok", "ok", "interp", "ok"]), LM)
+    pos, reason = guarded_extremum(y, original, "min")
+    assert pos is None
+    assert "interpolated" in reason
+
+
+def test_extremum_needs_at_least_one_reliable_sample() -> None:
+    y, original = landmark_y_series(
+        _series([0.5, 0.3], ["gap", "gap"]), LM)
+    pos, reason = guarded_extremum(y, original, "min")
+    assert pos is None
+    assert "no reliable" in reason

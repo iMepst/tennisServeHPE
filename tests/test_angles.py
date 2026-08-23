@@ -1,3 +1,4 @@
+import math
 
 import pytest
 
@@ -39,3 +40,21 @@ def test_vector_angle_oblique_and_scale_invariant() -> None:
     assert vector_angle((10.0, 0.0), (0.5, 0.5)) == pytest.approx(45.0)
 
 
+TINY = 1e-8  # slope where cos(theta) rounds to exactly +-1
+
+
+def test_vector_angle_stable_near_parallel() -> None:
+    ang = vector_angle((1.0, 0.0), (1.0, TINY))
+    assert ang == pytest.approx(math.degrees(TINY), rel=1e-6)
+    # the acos route collapses to exactly 0 for the same vectors
+    cos = 1.0 / math.hypot(1.0, TINY)
+    assert math.degrees(math.acos(min(1.0, cos))) == 0.0
+
+
+def test_vector_angle_stable_near_antiparallel() -> None:
+    ang = vector_angle((1.0, 0.0), (-1.0, TINY))
+    assert ang == pytest.approx(180.0 - math.degrees(TINY), rel=1e-12)
+    assert ang < 180.0
+    # the acos route collapses to exactly 180 for the same vectors
+    cos = -1.0 / math.hypot(1.0, TINY)
+    assert math.degrees(math.acos(max(-1.0, cos))) == 180.0

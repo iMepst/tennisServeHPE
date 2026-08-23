@@ -117,11 +117,11 @@ def _shade_unreliable(ax: Any, frames: List[ProcessedFrame], lm_id: int,
 
 def plot_raw_vs_filtered(
         pre_filter: List[ProcessedFrame],
-        variants: Sequence[Tuple[str, List[ProcessedFrame]]],
+        filtered: List[ProcessedFrame], label: str,
         landmark_names: Sequence[str], coord: str, path: str,
         title: Optional[str] = None,
         time_window: Optional[Tuple[float, float]] = None) -> str:
-    """Overlay the pre-filter signal and filtered variants for one channel."""
+    """Overlay the pre-filter and filtered signals for one channel."""
     name_to_id = {n: i for i, n in enumerate(LANDMARK_NAMES)}
     times = [f.time_s for f in pre_filter]
     pad = _typical_dt(times) / 2.0
@@ -137,9 +137,8 @@ def plot_raw_vs_filtered(
         lm_id = name_to_id[lm_name]
         raw = [_coord(f.samples[lm_id], coord) for f in pre_filter]
         ax.plot(times, raw, color="0.6", lw=0.8, label="pre-filter")
-        for label, frames in variants:
-            vals = [_coord(f.samples[lm_id], coord) for f in frames]
-            ax.plot(times, vals, lw=1.2, label=label)
+        vals = [_coord(f.samples[lm_id], coord) for f in filtered]
+        ax.plot(times, vals, lw=1.2, label=label)
         _shade_unreliable(ax, pre_filter, lm_id, times, pad)
         ax.set_ylabel(coord)
         ax.set_title(lm_name, fontsize=9, loc="left")

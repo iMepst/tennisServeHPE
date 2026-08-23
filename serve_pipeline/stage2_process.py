@@ -37,7 +37,6 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_VISIBILITY_THRESHOLD = 0.5
 DEFAULT_MAX_GAP_MS = PipelineConfig().max_gap_ms
-CANDIDATE_CUTOFFS_HZ = [3.0, 5.0, 8.0]
 DEFAULT_QC_COORD = "y"
 QC_WINDOW_PAD_S = 2.5
 
@@ -228,8 +227,6 @@ def run_stage2b(gated_csv_path: str, outdir: Optional[str] = None,
         "filtered_csv": os.path.join(outdir, "filtered.csv"),
         "filtering_meta_json": os.path.join(outdir, FILTERING_META_JSON),
         "filtering_qc_png": os.path.join(outdir, "filtering_qc.png"),
-        "filtering_compare_png": os.path.join(outdir,
-                                              "filtering_compare.png"),
     }
     write_filtered_csv(paths["filtered_csv"], filtered)
 
@@ -249,7 +246,6 @@ def run_stage2b(gated_csv_path: str, outdir: Optional[str] = None,
             "max_gap_frames": max_gap_frames,
             "fps": fps,
             "filter": filter_cfg.to_dict(),
-            "candidate_cutoffs_hz": CANDIDATE_CUTOFFS_HZ,
         },
         "interpolation": interp_stats,
         "filtering": filter_stats,
@@ -259,31 +255,17 @@ def run_stage2b(gated_csv_path: str, outdir: Optional[str] = None,
 
     landmarks = qc_landmarks or DEFAULT_QC_LANDMARKS
     window = _peak_motion_window(filtered, landmarks, qc_coord)
-    # Chosen-filter sanity check.
+    # Filter sanity check: pre-filter vs filtered around the swing.
     plot_raw_vs_filtered(
-        pre_filter,
-        [(f"butterworth {filter_cfg.cutoff_hz:g} Hz", filtered)],
+        pre_filter, filtered, f"butterworth {filter_cfg.cutoff_hz:g} Hz",
         landmarks, qc_coord, paths["filtering_qc_png"],
         title=f"Stage 2b filtered ({qc_coord}) - {clip}",
-        time_window=window)
-    # Candidate-cut-off comparison for the empirical filter decision.
-    variants = []
-    for cut in CANDIDATE_CUTOFFS_HZ:
-        cfg = FilterConfig(order=filter_cfg.order, cutoff_hz=cut)
-        fv = interpolate_gaps(gated, max_gap_frames)
-        filter_series(fv, fps, cfg)
-        variants.append((f"{cut:g} Hz", fv))
-    plot_raw_vs_filtered(
-        pre_filter, variants, landmarks, qc_coord,
-        paths["filtering_compare_png"],
-        title=f"Stage 2b Butterworth cut-off comparison ({qc_coord}) - {clip}",
         time_window=window)
 
     logger.info("Stage 2b (filtering) complete")
     logger.info("  filtered series: %s", paths["filtered_csv"])
     logger.info("  metadata:        %s", paths["filtering_meta_json"])
     logger.info("  QC plot:         %s", paths["filtering_qc_png"])
-    logger.info("  comparison plot: %s", paths["filtering_compare_png"])
     logger.info("  interpolation: max gap %.0f ms (%d frames), "
                 "%d samples filled",
                 max_gap_ms, max_gap_frames,

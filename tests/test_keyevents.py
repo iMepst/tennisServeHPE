@@ -228,6 +228,17 @@ def test_key_events_reject_unreadable_wrist_at_trophy() -> None:
     assert "trophy height" in ev.reason
 
 
+def test_key_events_low_contact_collapses_the_window() -> None:
+    # incomplete extension: the global wrist minimum sits in the loading
+    # region, so only frame 0 is left for the trophy search
+    frames = _serve_like(
+        [0.5, 0.2, 0.5, 0.45, 0.4, 0.38],
+        [0.9, 0.8, 0.7, 0.6, 0.6, 0.6])
+    ev = detect_key_events(frames, _PARAMS)
+    assert not ev.impact_locatable and not ev.trophy_locatable
+    assert "degenerate window" in ev.reason
+
+
 def test_key_events_reject_degenerate_window() -> None:
     # trophy directly beside impact: no frame separates the events
     frames = _serve_like(

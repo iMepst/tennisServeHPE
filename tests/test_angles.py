@@ -11,3 +11,15 @@ def _params(width: int = 1920, height: int = 1080) -> ClipParams:
 def test_pixel_point_rescales_by_frame_size() -> None:
     assert pixel_point(0.5, 0.5, _params()) == (960.0, 540.0)
     assert pixel_point(0.0, 1.0, _params()) == (0.0, 1080.0)
+
+
+def test_equal_normalized_offsets_differ_in_pixels_on_wide_frames() -> None:
+    # On a 16:9 frame the same normalized offset spans different pixel
+    # lengths per axis — the reason rescaling precedes every angle.
+    x0, y0 = pixel_point(0.4, 0.4, _params(1920, 1080))
+    x1, y1 = pixel_point(0.5, 0.5, _params(1920, 1080))
+    assert (x1 - x0, y1 - y0) == (192.0, 108.0)
+    # only a square frame keeps the offsets equal
+    x0, y0 = pixel_point(0.4, 0.4, _params(1000, 1000))
+    x1, y1 = pixel_point(0.5, 0.5, _params(1000, 1000))
+    assert x1 - x0 == y1 - y0

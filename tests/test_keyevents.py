@@ -3,9 +3,11 @@ from typing import List, Optional
 import numpy as np
 import pytest
 
+from serve_pipeline.config import ClipParams
 from serve_pipeline.interpolation import ProcessedFrame, ProcessedSample
 from serve_pipeline.keyevents import (
     detect_ball_impact,
+    detect_key_events,
     detect_trophy,
     guarded_extremum,
     landmark_y_series,
@@ -174,3 +176,63 @@ def test_trophy_needs_frames_before_impact() -> None:
     pos, reason = detect_trophy(frames, impact_pos=0)
     assert pos is None
     assert "before impact" in reason
+
+
+_PARAMS = ClipParams(serving_arm="right", front_leg="left",
+                     camera_plane="frontal", view_direction="front",
+                     fps=FPS, frame_width=1920, frame_height=1080)
+
+
+def _serve_like(wrist_ys: List[float], hip_ys: List[float],
+                wrist_states: Optional[List[str]] = None
+                ) -> List[ProcessedFrame]:
+    """Right wrist follows wrist_ys, left hip follows hip_ys."""
+    frames = _series(wrist_ys, wrist_states,
+                     lm_id=NAME_TO_ID["right_wrist"])
+    for f, y in zip(frames, hip_ys):
+        s = f.samples[NAME_TO_ID["left_hip"]]
+        s.x = y
+        s.y = y
+    return frames
+
+
+def test_key_events_happy_path() -> None:
+    # hip lowest (max y) at frame 2, wrist highest (min y) at frame 8
+    frames = _serve_like(
+        [0.8, 0.8, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.5],
+        [0.6, 0.7, 0.9, 0.8, 0.7, 0.6, 0.6, 0.6, 0.6, 0.6])
+    ev = detect_key_events(frames, _PARAMS)
+    assert (ev.trophy_frame, ev.impact_frame) == (2, 8)
+    assert ev.trophy_locatable and ev.impact_locatable
+    assert ev.reason == "ok"
+
+
+def test_key_events_impact_failure_propagates() -> None:
+    frames = _serve_like(
+        [0.8, 0.7, 0.2, 0.5], [0.6, 0.9, 0.8, 0.7],
+        wrist_states=["ok", "ok", "interp", "ok"])
+    ev = detect_key_events(frames, _PARAMS)
+    assert not ev.impact_locatable and not ev.trophy_locatable
+    assert ev.reason.startswith("impact:")
+
+
+def test_key_events_reject_unreadable_wrist_at_trophy() -> None:
+    # wrist gap at the trophy frame: guard 2 cannot be verified
+    frames = _serve_like(
+        [0.8, 0.8, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.5],
+        [0.6, 0.7, 0.9, 0.8, 0.7, 0.6, 0.6, 0.6, 0.6, 0.6],
+        wrist_states=["ok", "ok", "gap", "ok", "ok",
+                      "ok", "ok", "ok", "ok", "ok"])
+    ev = detect_key_events(frames, _PARAMS)
+    assert not ev.impact_locatable
+    assert "trophy height" in ev.reason
+
+
+def test_key_events_reject_degenerate_window() -> None:
+    # trophy directly beside impact: no frame separates the events
+    frames = _serve_like(
+        [0.5, 0.45, 0.4, 0.35, 0.3],
+        [0.6, 0.7, 0.8, 0.9, 0.6])
+    ev = detect_key_events(frames, _PARAMS)
+    assert not ev.impact_locatable
+    assert "degenerate window" in ev.reason

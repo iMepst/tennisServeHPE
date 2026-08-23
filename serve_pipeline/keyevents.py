@@ -5,10 +5,12 @@ coordinate series, from body landmarks only (pipeline_spec.md, Stage 3).
 Runs in memory on the Stage 2 output; nothing is persisted here.
 """
 
+from dataclasses import dataclass
 from typing import List, Optional, Tuple
 
 import numpy as np
 
+from .config import ClipParams
 from .interpolation import ProcessedFrame
 from .landmarks import NAME_TO_ID
 
@@ -97,3 +99,47 @@ def detect_trophy(frames: List[ProcessedFrame],
         return None, "no frames before impact"
     y, original = midhip_y_series(frames)
     return guarded_extremum(y[:impact_pos], original[:impact_pos], "max")
+
+
+@dataclass
+class KeyEvents:
+    """Stage 3 result: the two key frames, or why they are not locatable."""
+    trophy_frame: Optional[int]
+    impact_frame: Optional[int]
+    trophy_locatable: bool
+    impact_locatable: bool
+    reason: str
+
+
+def detect_key_events(frames: List[ProcessedFrame],
+                      clip_params: ClipParams) -> KeyEvents:
+    """Run the Stage 3 detection in spec order: impact first, then trophy.
+
+    Guard condition 2 then accepts ball impact only when the wrist at
+    impact lies above its trophy height and a non-degenerate window (at
+    least one frame) separates the two events. Any failure reports both
+    events as not locatable rather than returning a wrong instant, since
+    each event's validity depends on the other.
+    """
+    impact_pos, reason = detect_ball_impact(frames, clip_params.serving_arm)
+    if impact_pos is None:
+        return KeyEvents(None, None, False, False, f"impact: {reason}")
+    trophy_pos, reason = detect_trophy(frames, impact_pos)
+    if trophy_pos is None:
+        return KeyEvents(None, None, False, False, f"trophy: {reason}")
+
+    wrist_y, _ = landmark_y_series(
+        frames, NAME_TO_ID[f"{clip_params.serving_arm}_wrist"])
+    # NaN at the trophy frame makes the comparison False, so an
+    # unreadable wrist height also rejects the impact.
+    if not wrist_y[impact_pos] < wrist_y[trophy_pos]:
+        return KeyEvents(None, None, False, False,
+                         "impact: wrist not above its trophy height")
+    if impact_pos - trophy_pos < 2:
+        return KeyEvents(None, None, False, False,
+                         "impact: degenerate window between trophy "
+                         "and impact")
+    return KeyEvents(trophy_frame=frames[trophy_pos].frame_index,
+                     impact_frame=frames[impact_pos].frame_index,
+                     trophy_locatable=True, impact_locatable=True,
+                     reason="ok")

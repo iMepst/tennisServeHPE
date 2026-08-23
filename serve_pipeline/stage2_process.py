@@ -249,6 +249,11 @@ def run_stage2b(gated_csv_path: str, outdir: Optional[str] = None,
         },
         "interpolation": interp_stats,
         "filtering": filter_stats,
+        "filter_note": (
+            "8 Hz cut-off because the fast racket-arm motion near impact "
+            "holds higher-frequency content that a lower cut-off would "
+            "remove; marker-based serve studies filter in this band "
+            "(pipeline_spec.md, Stage 2c)."),
         "outputs": {k: os.path.abspath(v) for k, v in paths.items()},
     }
     write_metadata(paths["filtering_meta_json"], meta)

@@ -1,4 +1,7 @@
-from serve_pipeline.angles import pixel_point
+
+import pytest
+
+from serve_pipeline.angles import pixel_point, vector_angle
 from serve_pipeline.config import ClipParams
 
 
@@ -23,3 +26,16 @@ def test_equal_normalized_offsets_differ_in_pixels_on_wide_frames() -> None:
     x0, y0 = pixel_point(0.4, 0.4, _params(1000, 1000))
     x1, y1 = pixel_point(0.5, 0.5, _params(1000, 1000))
     assert x1 - x0 == y1 - y0
+
+
+def test_vector_angle_cardinal_cases() -> None:
+    assert vector_angle((1.0, 0.0), (2.0, 0.0)) == 0.0
+    assert vector_angle((1.0, 0.0), (0.0, 1.0)) == 90.0
+    assert vector_angle((1.0, 0.0), (-3.0, 0.0)) == 180.0
+
+
+def test_vector_angle_oblique_and_scale_invariant() -> None:
+    assert vector_angle((1.0, 0.0), (1.0, 1.0)) == pytest.approx(45.0)
+    assert vector_angle((10.0, 0.0), (0.5, 0.5)) == pytest.approx(45.0)
+
+

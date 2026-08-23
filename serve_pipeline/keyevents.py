@@ -149,3 +149,33 @@ def detect_key_events(frames: List[ProcessedFrame],
                      impact_frame=frames[impact_pos].frame_index,
                      trophy_locatable=True, impact_locatable=True,
                      reason="ok")
+
+
+@dataclass
+class SlowMotionFlag:
+    """QC diagnostic result; assessable is False when an event is missing."""
+    assessable: bool
+    likely_slow_motion: bool
+    trophy_to_impact_s: Optional[float]
+
+
+def flag_possible_slow_motion(key_events: KeyEvents, fps: float,
+                              max_real_seconds: float = 1.0
+                              ) -> SlowMotionFlag:
+    """QC flag: does trophy-to-contact take unrealistically long?
+
+    A real trophy-to-contact spans roughly 0.5-1.0 s, so a span well
+    beyond max_real_seconds suggests untagged slow-motion footage.
+    Diagnostic only: it never converts, scales, or fixes the fps, and
+    it does not feed back into the detection. When either event is not
+    locatable it reports not assessable instead of a number.
+    """
+    if not (key_events.trophy_locatable and key_events.impact_locatable):
+        return SlowMotionFlag(assessable=False, likely_slow_motion=False,
+                              trophy_to_impact_s=None)
+    assert key_events.impact_frame is not None
+    assert key_events.trophy_frame is not None
+    span_s = (key_events.impact_frame - key_events.trophy_frame) / fps
+    return SlowMotionFlag(assessable=True,
+                          likely_slow_motion=span_s > max_real_seconds,
+                          trophy_to_impact_s=span_s)

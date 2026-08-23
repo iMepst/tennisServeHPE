@@ -6,9 +6,11 @@ import pytest
 from serve_pipeline.config import ClipParams
 from serve_pipeline.interpolation import ProcessedFrame, ProcessedSample
 from serve_pipeline.keyevents import (
+    KeyEvents,
     detect_ball_impact,
     detect_key_events,
     detect_trophy,
+    flag_possible_slow_motion,
     guarded_extremum,
     landmark_y_series,
     midhip_y_series,
@@ -247,3 +249,28 @@ def test_key_events_reject_degenerate_window() -> None:
     ev = detect_key_events(frames, _PARAMS)
     assert not ev.impact_locatable
     assert "degenerate window" in ev.reason
+
+
+def test_slow_motion_flag_on_long_span() -> None:
+    ev = KeyEvents(trophy_frame=100, impact_frame=200,
+                   trophy_locatable=True, impact_locatable=True,
+                   reason="ok")
+    flag = flag_possible_slow_motion(ev, fps=25.0)   # 4 s > 1 s
+    assert flag.assessable and flag.likely_slow_motion
+    assert flag.trophy_to_impact_s == 4.0
+
+
+def test_slow_motion_flag_off_for_real_time_span() -> None:
+    ev = KeyEvents(trophy_frame=100, impact_frame=120,
+                   trophy_locatable=True, impact_locatable=True,
+                   reason="ok")
+    flag = flag_possible_slow_motion(ev, fps=25.0)   # 0.8 s
+    assert flag.assessable and not flag.likely_slow_motion
+    assert flag.trophy_to_impact_s == 0.8
+
+
+def test_slow_motion_flag_not_assessable_without_events() -> None:
+    ev = KeyEvents(None, None, False, False, "impact: no reliable samples")
+    flag = flag_possible_slow_motion(ev, fps=25.0)
+    assert not flag.assessable
+    assert flag.trophy_to_impact_s is None

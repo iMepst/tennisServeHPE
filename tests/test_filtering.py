@@ -9,8 +9,6 @@ from serve_pipeline.persistence import read_filtered_csv, write_filtered_csv
 
 LM = 16
 FPS = 25.0
-CUTOFF_HZ = 6.0
-ORDER = 4
 _VALUE_FIELDS = ["x", "y", "visibility"]
 
 
@@ -41,20 +39,20 @@ def _amplitude(frames: List[ProcessedFrame], margin: int = 20) -> float:
 
 
 def _cfg() -> FilterConfig:
-    return FilterConfig(order=ORDER, cutoff_hz=CUTOFF_HZ)
+    return FilterConfig()  # the config-driven defaults: 8 Hz, order 2
 
 
 def test_low_frequency_sine_survives_filtering() -> None:
-    frames = _sine_series(1.0)          # 1 Hz, well below the 6 Hz cut-off
+    frames = _sine_series(1.0)          # 1 Hz, well below the 8 Hz cut-off
     filter_series(frames, FPS, _cfg())
     assert _amplitude(frames) > 0.9     # amplitude essentially preserved
 
 
 def test_high_frequency_sine_is_strongly_attenuated() -> None:
-    frames = _sine_series(10.0)         # 10 Hz, well above the cut-off
+    frames = _sine_series(11.0)         # 11 Hz, above the 8 Hz cut-off
     filter_series(frames, FPS, _cfg())
-    # Butterworth |H| at 10 Hz, order 4, applied twice (filtfilt):
-    #   |H|^2 = 1 / (1 + (10/6)^8)^... -> ~0.02, so far below 0.3.
+    # Butterworth power gain at 11 Hz, order 2, applied twice (filtfilt):
+    #   |H|^2 = 1 / (1 + (11/8)^4) -> ~0.22, so below 0.3.
     assert _amplitude(frames) < 0.3
 
 
@@ -67,8 +65,8 @@ def test_filtered_flag_set_on_long_reliable_segment() -> None:
 
 
 def test_short_segment_is_left_unfiltered() -> None:
-    # min segment length for order 4 is 3*(4+1)+1 = 16; 12 is too short
-    frames = _sine_series(1.0, n=12)
+    # min segment length for order 2 is 3*(2+1)+1 = 10; 8 is too short
+    frames = _sine_series(1.0, n=8)
     stats = filter_series(frames, FPS, _cfg())
     assert not any(f.samples[LM].filtered for f in frames)
     assert stats["n_filtered_samples"] == 0

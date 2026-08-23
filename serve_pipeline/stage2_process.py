@@ -37,8 +37,6 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_VISIBILITY_THRESHOLD = 0.5
 DEFAULT_MAX_GAP_FRAMES = 3
-DEFAULT_FILTER_ORDER = 4
-DEFAULT_CUTOFF_HZ = 5.0
 CANDIDATE_CUTOFFS_HZ = [3.0, 5.0, 8.0]
 DEFAULT_QC_COORD = "y"
 QC_WINDOW_PAD_S = 2.5
@@ -211,8 +209,7 @@ def run_stage2b(gated_csv_path: str, outdir: Optional[str] = None,
                                  GATING_META_JSON)
         meta_path = candidate if os.path.isfile(candidate) else None
     if filter_cfg is None:
-        filter_cfg = FilterConfig(order=DEFAULT_FILTER_ORDER,
-                                  cutoff_hz=DEFAULT_CUTOFF_HZ)
+        filter_cfg = FilterConfig()  # config-driven defaults
 
     gated = read_gated_csv(gated_csv_path)
     fps = _resolve_fps_stage2a(meta_path, gated)
@@ -340,11 +337,13 @@ def main() -> None:
     p2b.add_argument("--meta", default=None,
                      help="Stage 2a gating_meta.json (for fps); auto-detected "
                           "next to the CSV if omitted")
+    default_filter = FilterConfig()  # config-driven defaults
     p2b.add_argument("--max-gap-frames", type=int,
                      default=DEFAULT_MAX_GAP_FRAMES)
-    p2b.add_argument("--order", type=int, default=DEFAULT_FILTER_ORDER,
-                     help="Butterworth order")
-    p2b.add_argument("--cutoff-hz", type=float, default=DEFAULT_CUTOFF_HZ,
+    p2b.add_argument("--order", type=int, default=default_filter.order,
+                     help="Butterworth order (nominal; filtfilt doubles it)")
+    p2b.add_argument("--cutoff-hz", type=float,
+                     default=default_filter.cutoff_hz,
                      help="Butterworth cut-off frequency")
     p2b.add_argument("--qc-coord", default=DEFAULT_QC_COORD,
                      help="coordinate channel to plot (default: y)")

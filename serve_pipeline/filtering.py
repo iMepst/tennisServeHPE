@@ -4,15 +4,22 @@ from typing import Any, Dict, List, Optional
 import numpy as np
 from scipy.signal import butter, filtfilt
 
+from .config import PipelineConfig
 from .interpolation import COORD_FIELDS, ProcessedFrame
 from .landmarks import NUM_LANDMARKS
+
+_DEFAULTS = PipelineConfig()
 
 
 @dataclass
 class FilterConfig:
-    """Butterworth low-pass parameters, for the metadata note."""
-    order: int = 4
-    cutoff_hz: float = 6.0
+    """Butterworth low-pass parameters, for the metadata note.
+
+    Defaults come from PipelineConfig: nominal order 2 (effectively 4th
+    via the filtfilt double pass) with a fixed 8 Hz physical cut-off.
+    """
+    order: int = _DEFAULTS.butterworth_order
+    cutoff_hz: float = _DEFAULTS.cutoff_hz
 
     def to_dict(self) -> Dict[str, Any]:
         return {

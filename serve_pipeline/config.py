@@ -108,9 +108,13 @@ class ClipParams:
     # criteria are available.
     view_direction: str
 
-    # Frame rate of the clip. Converts the 120 ms gap bound to frames
-    # and sets the Nyquist frequency for the per-clip filter design
-    # (pipeline_spec.md Stage 2).
+    # Frame rate of the clip: the container/playback fps of the file at
+    # hand, never a guessed capture rate. Scraped footage may be
+    # untagged slow-motion whose capture rate is not recoverable; the
+    # frames are sampled at the container fps, which is the correct
+    # operating rate for the 120 ms gap bound and the per-clip filter
+    # design (Nyquist), and the core outputs (angles, verdicts) do not
+    # depend on fps (pipeline_spec.md, per-clip parameters and Stage 2).
     fps: float
 
     # Frame size in pixels. Rescales normalized landmark coordinates to

@@ -2,29 +2,23 @@ from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
 import numpy as np
-from scipy.signal import butter, filtfilt, savgol_filter
+from scipy.signal import butter, filtfilt
 
 from .interpolation import COORD_FIELDS, ProcessedFrame
 from .landmarks import NUM_LANDMARKS
 
-KIND_BUTTERWORTH = "butterworth"
-KIND_SAVGOL = "savgol"
-
 
 @dataclass
 class FilterConfig:
-    """Everything needed to reproduce the filter, for the metadata note."""
-    kind: str = KIND_BUTTERWORTH
-    order: int = 4                      # Butterworth order / Savgol polyorder
-    cutoff_hz: Optional[float] = 6.0    # Butterworth only
-    window_length: Optional[int] = None  # Savgol only (odd)
+    """Butterworth low-pass parameters, for the metadata note."""
+    order: int = 4
+    cutoff_hz: float = 6.0
 
     def to_dict(self) -> Dict[str, Any]:
         return {
-            "kind": self.kind,
+            "kind": "butterworth",
             "order": self.order,
             "cutoff_hz": self.cutoff_hz,
-            "window_length": self.window_length,
         }
 
 
@@ -45,33 +39,21 @@ def _reliable_segments(reliable: List[bool]) -> List[tuple]:
 
 def _min_segment_length(cfg: FilterConfig) -> int:
     """Shortest segment the configured filter can process."""
-    if cfg.kind == KIND_BUTTERWORTH:
-        # filtfilt's default padlen is 3 * max(len(a), len(b)) = 3*(order+1);
-        # the segment must be strictly longer than that.
-        return 3 * (cfg.order + 1) + 1
-    # Savgol needs at least a full window.
-    return cfg.window_length or (cfg.order + 2)
+    # filtfilt's default padlen is 3 * max(len(a), len(b)) = 3*(order+1);
+    # the segment must be strictly longer than that.
+    return 3 * (cfg.order + 1) + 1
 
 
 def _filter_segment(values: np.ndarray, fps: float,
                     cfg: FilterConfig) -> np.ndarray:
-    if cfg.kind == KIND_BUTTERWORTH:
-        if cfg.cutoff_hz is None:
-            raise ValueError("Butterworth filter requires cutoff_hz")
-        nyquist = 0.5 * fps
-        wn = cfg.cutoff_hz / nyquist
-        if not 0.0 < wn < 1.0:
-            raise ValueError(
-                f"cutoff_hz {cfg.cutoff_hz} must be in (0, {nyquist}) at "
-                f"fps {fps}")
-        b, a = butter(cfg.order, wn, btype="low")
-        return np.asarray(filtfilt(b, a, values), dtype=float)
-    if cfg.kind == KIND_SAVGOL:
-        if cfg.window_length is None:
-            raise ValueError("Savgol filter requires window_length")
-        return np.asarray(
-            savgol_filter(values, cfg.window_length, cfg.order), dtype=float)
-    raise ValueError(f"Unknown filter kind: {cfg.kind}")
+    nyquist = 0.5 * fps
+    wn = cfg.cutoff_hz / nyquist
+    if not 0.0 < wn < 1.0:
+        raise ValueError(
+            f"cutoff_hz {cfg.cutoff_hz} must be in (0, {nyquist}) at "
+            f"fps {fps}")
+    b, a = butter(cfg.order, wn, btype="low")
+    return np.asarray(filtfilt(b, a, values), dtype=float)
 
 
 def filter_series(frames: List[ProcessedFrame], fps: float,

@@ -2,11 +2,7 @@ import math
 from pathlib import Path
 from typing import List
 
-from serve_pipeline.filtering import (
-    KIND_BUTTERWORTH,
-    FilterConfig,
-    filter_series,
-)
+from serve_pipeline.filtering import FilterConfig, filter_series
 from serve_pipeline.interpolation import ProcessedFrame, ProcessedSample
 from serve_pipeline.landmarks import NUM_LANDMARKS
 from serve_pipeline.persistence import read_filtered_csv, write_filtered_csv
@@ -45,8 +41,7 @@ def _amplitude(frames: List[ProcessedFrame], margin: int = 20) -> float:
 
 
 def _cfg() -> FilterConfig:
-    return FilterConfig(
-        kind=KIND_BUTTERWORTH, order=ORDER, cutoff_hz=CUTOFF_HZ)
+    return FilterConfig(order=ORDER, cutoff_hz=CUTOFF_HZ)
 
 
 def test_low_frequency_sine_survives_filtering() -> None:

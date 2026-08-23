@@ -7,12 +7,7 @@ import os
 from typing import Any, Dict, List, Optional, Tuple
 
 from . import __version__
-from .filtering import (
-    KIND_BUTTERWORTH,
-    KIND_SAVGOL,
-    FilterConfig,
-    filter_series,
-)
+from .filtering import FilterConfig, filter_series
 from .gating import GatedFrame, compute_gap_statistics, gate_frames
 from .interpolation import (
     ProcessedFrame,
@@ -52,13 +47,11 @@ GATING_META_JSON = "gating_meta.json"
 FILTERING_META_JSON = "filtering_meta.json"
 
 DECIDED_FILTER = FilterConfig(
-    kind=KIND_BUTTERWORTH, order=DEFAULT_FILTER_ORDER,
-    cutoff_hz=DEFAULT_CUTOFF_HZ)
+    order=DEFAULT_FILTER_ORDER, cutoff_hz=DEFAULT_CUTOFF_HZ)
 
 
 def _is_decided_filter(cfg: FilterConfig) -> bool:
-    return (cfg.kind == DECIDED_FILTER.kind
-            and cfg.order == DECIDED_FILTER.order
+    return (cfg.order == DECIDED_FILTER.order
             and cfg.cutoff_hz == DECIDED_FILTER.cutoff_hz)
 
 
@@ -226,8 +219,7 @@ def run_stage2b(gated_csv_path: str, outdir: Optional[str] = None,
                                  GATING_META_JSON)
         meta_path = candidate if os.path.isfile(candidate) else None
     if filter_cfg is None:
-        filter_cfg = FilterConfig(kind=KIND_BUTTERWORTH,
-                                  order=DEFAULT_FILTER_ORDER,
+        filter_cfg = FilterConfig(order=DEFAULT_FILTER_ORDER,
                                   cutoff_hz=DEFAULT_CUTOFF_HZ)
 
     gated = read_gated_csv(gated_csv_path)
@@ -294,15 +286,14 @@ def run_stage2b(gated_csv_path: str, outdir: Optional[str] = None,
     # Chosen-filter sanity check.
     plot_raw_vs_filtered(
         pre_filter,
-        [(f"{filter_cfg.kind} {filter_cfg.cutoff_hz:g} Hz", filtered)],
+        [(f"butterworth {filter_cfg.cutoff_hz:g} Hz", filtered)],
         landmarks, qc_coord, paths["filtering_qc_png"],
         title=f"Stage 2b filtered ({qc_coord}) - {clip}",
         time_window=window)
     # Candidate-cut-off comparison for the empirical filter decision.
     variants = []
     for cut in CANDIDATE_CUTOFFS_HZ:
-        cfg = FilterConfig(kind=KIND_BUTTERWORTH,
-                           order=filter_cfg.order, cutoff_hz=cut)
+        cfg = FilterConfig(order=filter_cfg.order, cutoff_hz=cut)
         fv = interpolate_gaps(gated, max_gap_frames)
         filter_series(fv, fps, cfg)
         variants.append((f"{cut:g} Hz", fv))
@@ -330,9 +321,8 @@ def run_stage2b(gated_csv_path: str, outdir: Optional[str] = None,
                 interp_stats["total_interpolated_samples"])
     logger.info("  unreliable (long/edge gaps): %d samples",
                 interp_stats["total_unreliable_samples"])
-    logger.info("  filter: %s order %d cutoff %s Hz  (fps %.3g)",
-                filter_cfg.kind, filter_cfg.order,
-                filter_cfg.cutoff_hz, fps)
+    logger.info("  filter: butterworth order %d cutoff %s Hz  (fps %.3g)",
+                filter_cfg.order, filter_cfg.cutoff_hz, fps)
     logger.info("  filtered %d of %d reliable samples",
                 filter_stats["n_filtered_samples"],
                 filter_stats["n_reliable_samples"])
@@ -374,15 +364,10 @@ def main() -> None:
                           "next to the CSV if omitted")
     p2b.add_argument("--max-gap-frames", type=int,
                      default=DEFAULT_MAX_GAP_FRAMES)
-    p2b.add_argument("--filter", dest="filter_kind",
-                     choices=[KIND_BUTTERWORTH, KIND_SAVGOL],
-                     default=KIND_BUTTERWORTH)
     p2b.add_argument("--order", type=int, default=DEFAULT_FILTER_ORDER,
-                     help="Butterworth order or Savgol polyorder")
+                     help="Butterworth order")
     p2b.add_argument("--cutoff-hz", type=float, default=DEFAULT_CUTOFF_HZ,
                      help="Butterworth cut-off frequency")
-    p2b.add_argument("--window-length", type=int, default=None,
-                     help="Savgol window length (odd)")
     p2b.add_argument("--qc-coord", default=DEFAULT_QC_COORD,
                      help="coordinate channel to plot (default: y)")
     _add_common_qc(p2b)
@@ -397,9 +382,7 @@ def main() -> None:
             qc_landmarks=args.qc_landmarks,
         )
     else:
-        cfg = FilterConfig(
-            kind=args.filter_kind, order=args.order,
-            cutoff_hz=args.cutoff_hz, window_length=args.window_length)
+        cfg = FilterConfig(order=args.order, cutoff_hz=args.cutoff_hz)
         run_stage2b(
             gated_csv_path=args.gated_csv,
             outdir=args.outdir,

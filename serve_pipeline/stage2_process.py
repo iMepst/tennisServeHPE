@@ -7,6 +7,7 @@ import os
 from typing import Any, Dict, List, Optional, Tuple
 
 from . import __version__
+from .config import PipelineConfig
 from .filtering import FilterConfig, filter_series
 from .gating import GatedFrame, compute_gap_statistics, gate_frames
 from .interpolation import (
@@ -36,7 +37,7 @@ from .pose_extraction import FramePose
 logger = logging.getLogger(__name__)
 
 DEFAULT_VISIBILITY_THRESHOLD = 0.5
-DEFAULT_MAX_GAP_FRAMES = 3
+DEFAULT_MAX_GAP_MS = PipelineConfig().max_gap_ms
 CANDIDATE_CUTOFFS_HZ = [3.0, 5.0, 8.0]
 DEFAULT_QC_COORD = "y"
 QC_WINDOW_PAD_S = 2.5
@@ -196,7 +197,7 @@ def _peak_motion_window(
 
 def run_stage2b(gated_csv_path: str, outdir: Optional[str] = None,
                 meta_path: Optional[str] = None,
-                max_gap_frames: int = DEFAULT_MAX_GAP_FRAMES,
+                max_gap_ms: float = DEFAULT_MAX_GAP_MS,
                 filter_cfg: Optional[FilterConfig] = None,
                 qc_landmarks: Optional[List[str]] = None,
                 qc_coord: str = DEFAULT_QC_COORD) -> Dict[str, Any]:
@@ -213,6 +214,9 @@ def run_stage2b(gated_csv_path: str, outdir: Optional[str] = None,
 
     gated = read_gated_csv(gated_csv_path)
     fps = _resolve_fps_stage2a(meta_path, gated)
+    # The gap bound is defined in time; convert it to this clip's frames so
+    # the same physical gap length holds at any frame rate.
+    max_gap_frames = round(max_gap_ms / 1000.0 * fps)
 
     pre_filter = interpolate_gaps(gated, max_gap_frames)
     interp_stats = summarize_interpolation(pre_filter)
@@ -244,8 +248,8 @@ def run_stage2b(gated_csv_path: str, outdir: Optional[str] = None,
         "input_gating_meta_json": (
             os.path.abspath(meta_path) if meta_path else None),
         "parameters": {
+            "max_gap_ms": max_gap_ms,
             "max_gap_frames": max_gap_frames,
-            "max_gap_ms": max_gap_frames / fps * 1000.0 if fps else None,
             "fps": fps,
             "filter": filter_cfg.to_dict(),
             "candidate_cutoffs_hz": CANDIDATE_CUTOFFS_HZ,
@@ -290,9 +294,9 @@ def run_stage2b(gated_csv_path: str, outdir: Optional[str] = None,
     logger.info("  metadata:        %s", paths["filtering_meta_json"])
     logger.info("  QC plot:         %s", paths["filtering_qc_png"])
     logger.info("  comparison plot: %s", paths["filtering_compare_png"])
-    logger.info("  interpolation: max gap %d frames (%.0f ms), "
+    logger.info("  interpolation: max gap %.0f ms (%d frames), "
                 "%d samples filled",
-                max_gap_frames, max_gap_frames / fps * 1000.0,
+                max_gap_ms, max_gap_frames,
                 interp_stats["total_interpolated_samples"])
     logger.info("  unreliable (long/edge gaps): %d samples",
                 interp_stats["total_unreliable_samples"])
@@ -338,8 +342,9 @@ def main() -> None:
                      help="Stage 2a gating_meta.json (for fps); auto-detected "
                           "next to the CSV if omitted")
     default_filter = FilterConfig()  # config-driven defaults
-    p2b.add_argument("--max-gap-frames", type=int,
-                     default=DEFAULT_MAX_GAP_FRAMES)
+    p2b.add_argument("--max-gap-ms", type=float, default=DEFAULT_MAX_GAP_MS,
+                     help="interpolation gap bound in ms, converted to "
+                          "frames from the clip's fps")
     p2b.add_argument("--order", type=int, default=default_filter.order,
                      help="Butterworth order (nominal; filtfilt doubles it)")
     p2b.add_argument("--cutoff-hz", type=float,
@@ -364,7 +369,7 @@ def main() -> None:
             gated_csv_path=args.gated_csv,
             outdir=args.outdir,
             meta_path=args.meta,
-            max_gap_frames=args.max_gap_frames,
+            max_gap_ms=args.max_gap_ms,
             filter_cfg=cfg,
             qc_landmarks=args.qc_landmarks,
             qc_coord=args.qc_coord,

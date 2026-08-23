@@ -94,6 +94,12 @@ def detect_trophy(frames: List[ProcessedFrame],
     (the deepest leg drive). Searched strictly over the frames before
     the impact position. Returns the position in frames and "ok", or
     None and the rejection reason.
+
+    Shared-input dependence, by design: the pelvis proxy, trunk
+    inclination, and front knee flexion all derive from the hip
+    landmarks, so the trophy frame and the two angles read at it are
+    not independent — a hip-landmark error shifts both. Documented
+    here, not corrected.
     """
     if impact_pos <= 0:
         return None, "no frames before impact"

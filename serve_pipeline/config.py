@@ -48,12 +48,6 @@ class PipelineConfig:
     # offset (pipeline_spec.md Stage 2c). The 8 Hz physical cut-off is
     # fixed across recordings; only the normalized cut-off 8/(fps/2) is
     # recomputed per clip.
-    # Deviation from the experimental code: the old pipeline locked
-    # 5 Hz / nominal order 4, justified by a velocity-differentiation
-    # stage that was never built. The methodology reads static angles at
-    # single key frames and prescribes 8 Hz / nominal order 2 instead.
-    # The values here are authoritative; the filter code itself is
-    # switched over in roadmap step 3.
     butterworth_order: int = 2
     cutoff_hz: float = 8.0
 

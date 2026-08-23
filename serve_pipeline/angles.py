@@ -54,3 +54,16 @@ def landmark_pixel(frame: ProcessedFrame, landmark_name: str,
             f"landmark {landmark_name} has no coordinates at frame "
             f"{frame.frame_index}")
     return pixel_point(sample.x, sample.y, clip_params)
+
+
+def turning_angle(frame: ProcessedFrame, first: str, middle: str,
+                  last: str, clip_params: ClipParams) -> float:
+    """Turning angle of the chain first -> middle -> last, 0..180 deg.
+
+    u = first->middle, v = middle->last: a straight chain reads ~0, a
+    right-angle bend 90. Knee and elbow flexion share this construction.
+    """
+    ax, ay = landmark_pixel(frame, first, clip_params)
+    bx, by = landmark_pixel(frame, middle, clip_params)
+    cx, cy = landmark_pixel(frame, last, clip_params)
+    return vector_angle((bx - ax, by - ay), (cx - bx, cy - by))

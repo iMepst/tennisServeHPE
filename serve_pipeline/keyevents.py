@@ -69,3 +69,16 @@ def detect_ball_impact(frames: List[ProcessedFrame],
     wrist_id = NAME_TO_ID[f"{serving_arm}_wrist"]
     y, original = landmark_y_series(frames, wrist_id)
     return guarded_extremum(y, original, "min")
+
+
+def midhip_y_series(
+        frames: List[ProcessedFrame]) -> Tuple[np.ndarray, np.ndarray]:
+    """Pelvis proxy: mean y of the two hip landmarks per frame.
+
+    The mid-hip exists only where both hips are reliable (one NaN makes
+    the mean NaN), and counts as originally reliable only where both
+    hips are.
+    """
+    y_left, orig_left = landmark_y_series(frames, NAME_TO_ID["left_hip"])
+    y_right, orig_right = landmark_y_series(frames, NAME_TO_ID["right_hip"])
+    return (y_left + y_right) / 2.0, orig_left & orig_right

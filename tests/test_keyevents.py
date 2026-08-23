@@ -8,6 +8,7 @@ from serve_pipeline.keyevents import (
     detect_ball_impact,
     guarded_extremum,
     landmark_y_series,
+    midhip_y_series,
 )
 from serve_pipeline.landmarks import NAME_TO_ID, NUM_LANDMARKS
 
@@ -133,3 +134,20 @@ def test_impact_guard_failure_propagates() -> None:
 def test_impact_rejects_unknown_arm() -> None:
     with pytest.raises(ValueError, match="serving_arm"):
         detect_ball_impact(_series([0.5]), "both")
+
+
+def test_midhip_is_the_mean_of_both_hips() -> None:
+    # left hip varies, right hip stays at the builder's constant 0.5
+    frames = _series([0.7, 0.9], lm_id=NAME_TO_ID["left_hip"])
+    y, original = midhip_y_series(frames)
+    assert np.allclose(y, [0.6, 0.7])
+    assert original.all()
+
+
+def test_midhip_needs_both_hips() -> None:
+    frames = _series([0.7, 0.9, 0.8], ["ok", "gap", "interp"],
+                     lm_id=NAME_TO_ID["left_hip"])
+    y, original = midhip_y_series(frames)
+    assert np.isnan(y[1])               # one missing hip: no pelvis value
+    assert y[2] == 0.65                 # interpolated hip: usable value...
+    assert list(original) == [True, False, False]   # ...but not original

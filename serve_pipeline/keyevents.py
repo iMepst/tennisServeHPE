@@ -39,12 +39,16 @@ def guarded_extremum(y: np.ndarray, original: np.ndarray,
 
     kind is "min" or "max". The search runs over the reliable (non-NaN)
     values only; guard condition 1 then rejects an extremum that sits on
-    an interpolated sample, because the true extremum may differ from
-    the linear fill.
+    an interpolated sample (the true extremum may differ from the linear
+    fill) or beside an unfilled gap (the true extremum may lie inside
+    the unobserved gap).
     """
     if not np.isfinite(y).any():
         return None, "no reliable samples in the series"
     pos = int(np.nanargmin(y) if kind == "min" else np.nanargmax(y))
     if not original[pos]:
         return None, "extremum sits on an interpolated sample"
+    for neighbour in (pos - 1, pos + 1):
+        if 0 <= neighbour < len(y) and np.isnan(y[neighbour]):
+            return None, "extremum sits at the edge of an unfilled gap"
     return pos, "ok"

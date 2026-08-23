@@ -83,3 +83,20 @@ def test_extremum_needs_at_least_one_reliable_sample() -> None:
     pos, reason = guarded_extremum(y, original, "min")
     assert pos is None
     assert "no reliable" in reason
+
+
+def test_extremum_beside_left_gap_is_rejected() -> None:
+    # the minimum at position 2 borders the unfilled gap at position 1
+    y, original = landmark_y_series(
+        _series([0.5, 0.1, 0.2, 0.4], ["ok", "gap", "ok", "ok"]), LM)
+    pos, reason = guarded_extremum(y, original, "min")
+    assert pos is None
+    assert "unfilled gap" in reason
+
+
+def test_extremum_beside_right_gap_is_rejected() -> None:
+    y, original = landmark_y_series(
+        _series([0.5, 0.2, 0.1, 0.4], ["ok", "ok", "gap", "ok"]), LM)
+    pos, reason = guarded_extremum(y, original, "min")
+    assert pos is None
+    assert "unfilled gap" in reason

@@ -68,7 +68,7 @@ class OverlayVideoWriter:
 
 
 def save_contact_sheet(path: str, images: List[BgrImage], columns: int = 4,
-                       thumb_width: int = 320) -> str:
+                       thumb_width: int = 960) -> str:
     """Tiles overlay frames into one PNG for a quick visual sanity check."""
     if not images:
         raise ValueError("no images given")

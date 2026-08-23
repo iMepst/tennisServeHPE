@@ -1,9 +1,16 @@
 import math
+from typing import Dict, Tuple
 
 import pytest
 
-from serve_pipeline.angles import pixel_point, vector_angle
+from serve_pipeline.angles import (
+    landmark_pixel,
+    pixel_point,
+    vector_angle,
+)
 from serve_pipeline.config import ClipParams
+from serve_pipeline.interpolation import ProcessedFrame, ProcessedSample
+from serve_pipeline.landmarks import LANDMARK_NAMES, NUM_LANDMARKS
 
 
 def _params(width: int = 1920, height: int = 1080) -> ClipParams:
@@ -58,3 +65,29 @@ def test_vector_angle_stable_near_antiparallel() -> None:
     # the acos route collapses to exactly 180 for the same vectors
     cos = -1.0 / math.hypot(1.0, TINY)
     assert math.degrees(math.acos(max(-1.0, cos))) == 180.0
+
+
+def _frame(positions: Dict[str, Tuple[float, float]]) -> ProcessedFrame:
+    """One frame; named landmarks at normalized (x, y), the rest at 0.5."""
+    samples = []
+    for lm in range(NUM_LANDMARKS):
+        x, y = positions.get(LANDMARK_NAMES[lm], (0.5, 0.5))
+        samples.append(ProcessedSample(
+            landmark_id=lm, valid=True, mask_reason="ok",
+            interpolated=False, reliable=True, filtered=True,
+            x=x, y=y, visibility=0.9))
+    return ProcessedFrame(frame_index=0, time_s=0.0, samples=samples)
+
+
+def test_landmark_pixel_returns_rescaled_position() -> None:
+    frame = _frame({"right_wrist": (0.25, 0.5)})
+    assert landmark_pixel(frame, "right_wrist", _params()) == (480.0, 540.0)
+
+
+def test_landmark_pixel_rejects_missing_coordinates() -> None:
+    frame = _frame({"right_wrist": (0.25, 0.5)})
+    sample = frame.samples[16]          # right_wrist
+    sample.x = None
+    sample.y = None
+    with pytest.raises(ValueError, match="right_wrist"):
+        landmark_pixel(frame, "right_wrist", _params())

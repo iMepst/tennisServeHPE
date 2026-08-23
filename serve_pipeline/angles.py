@@ -13,6 +13,8 @@ import math
 from typing import Tuple
 
 from .config import ClipParams
+from .interpolation import ProcessedFrame
+from .landmarks import NAME_TO_ID
 
 
 def pixel_point(x: float, y: float,
@@ -36,3 +38,19 @@ def vector_angle(u: Tuple[float, float], v: Tuple[float, float]) -> float:
     cross = u[0] * v[1] - u[1] * v[0]
     dot = u[0] * v[0] + u[1] * v[1]
     return math.degrees(math.atan2(abs(cross), dot))
+
+
+def landmark_pixel(frame: ProcessedFrame, landmark_name: str,
+                   clip_params: ClipParams) -> Tuple[float, float]:
+    """One landmark's pixel position at this frame.
+
+    Raises ValueError when the sample carries no coordinates (an
+    unfilled gap or undetected frame); the reliability gate itself is
+    applied by the caller before any angle is formed.
+    """
+    sample = frame.samples[NAME_TO_ID[landmark_name]]
+    if sample.x is None or sample.y is None:
+        raise ValueError(
+            f"landmark {landmark_name} has no coordinates at frame "
+            f"{frame.frame_index}")
+    return pixel_point(sample.x, sample.y, clip_params)

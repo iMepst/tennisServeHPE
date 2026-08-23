@@ -82,3 +82,18 @@ def midhip_y_series(
     y_left, orig_left = landmark_y_series(frames, NAME_TO_ID["left_hip"])
     y_right, orig_right = landmark_y_series(frames, NAME_TO_ID["right_hip"])
     return (y_left + y_right) / 2.0, orig_left & orig_right
+
+
+def detect_trophy(frames: List[ProcessedFrame],
+                  impact_pos: int) -> Tuple[Optional[int], str]:
+    """Trophy proxy: frame of the mid-hip y-maximum before ball impact.
+
+    Image y grows downward, so the maximum is the pelvis's lowest point
+    (the deepest leg drive). Searched strictly over the frames before
+    the impact position. Returns the position in frames and "ok", or
+    None and the rejection reason.
+    """
+    if impact_pos <= 0:
+        return None, "no frames before impact"
+    y, original = midhip_y_series(frames)
+    return guarded_extremum(y[:impact_pos], original[:impact_pos], "max")

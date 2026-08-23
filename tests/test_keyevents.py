@@ -6,6 +6,7 @@ import pytest
 from serve_pipeline.interpolation import ProcessedFrame, ProcessedSample
 from serve_pipeline.keyevents import (
     detect_ball_impact,
+    detect_trophy,
     guarded_extremum,
     landmark_y_series,
     midhip_y_series,
@@ -151,3 +152,25 @@ def test_midhip_needs_both_hips() -> None:
     assert np.isnan(y[1])               # one missing hip: no pelvis value
     assert y[2] == 0.65                 # interpolated hip: usable value...
     assert list(original) == [True, False, False]   # ...but not original
+
+
+def test_trophy_is_the_midhip_maximum_before_impact() -> None:
+    frames = _series([0.6, 0.9, 0.7, 0.5, 1.2],
+                     lm_id=NAME_TO_ID["left_hip"])
+    # the global maximum at position 4 lies outside the search window
+    assert detect_trophy(frames, impact_pos=4) == (1, "ok")
+
+
+def test_trophy_guard_failure_propagates() -> None:
+    frames = _series([0.6, 0.9, 0.7, 0.5], ["ok", "interp", "ok", "ok"],
+                     lm_id=NAME_TO_ID["left_hip"])
+    pos, reason = detect_trophy(frames, impact_pos=4)
+    assert pos is None
+    assert "interpolated" in reason
+
+
+def test_trophy_needs_frames_before_impact() -> None:
+    frames = _series([0.6, 0.9], lm_id=NAME_TO_ID["left_hip"])
+    pos, reason = detect_trophy(frames, impact_pos=0)
+    assert pos is None
+    assert "before impact" in reason

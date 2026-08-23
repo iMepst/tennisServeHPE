@@ -10,6 +10,7 @@ from typing import List, Optional, Tuple
 import numpy as np
 
 from .interpolation import ProcessedFrame
+from .landmarks import NAME_TO_ID
 
 
 def landmark_y_series(frames: List[ProcessedFrame],
@@ -52,3 +53,19 @@ def guarded_extremum(y: np.ndarray, original: np.ndarray,
         if 0 <= neighbour < len(y) and np.isnan(y[neighbour]):
             return None, "extremum sits at the edge of an unfilled gap"
     return pos, "ok"
+
+
+def detect_ball_impact(frames: List[ProcessedFrame],
+                       serving_arm: str) -> Tuple[Optional[int], str]:
+    """Ball-impact proxy: frame of the racket-arm wrist's y-minimum.
+
+    Image y grows downward, so the minimum is the wrist's highest point,
+    coinciding with the extended reach at contact. Returns the position
+    in frames and "ok", or None and the guard's rejection reason.
+    """
+    if serving_arm not in ("left", "right"):
+        raise ValueError(
+            f"serving_arm must be 'left' or 'right', got {serving_arm!r}")
+    wrist_id = NAME_TO_ID[f"{serving_arm}_wrist"]
+    y, original = landmark_y_series(frames, wrist_id)
+    return guarded_extremum(y, original, "min")

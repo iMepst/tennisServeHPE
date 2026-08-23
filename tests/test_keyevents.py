@@ -1,9 +1,14 @@
 from typing import List, Optional
 
 import numpy as np
+import pytest
 
 from serve_pipeline.interpolation import ProcessedFrame, ProcessedSample
-from serve_pipeline.keyevents import guarded_extremum, landmark_y_series
+from serve_pipeline.keyevents import (
+    detect_ball_impact,
+    guarded_extremum,
+    landmark_y_series,
+)
 from serve_pipeline.landmarks import NAME_TO_ID, NUM_LANDMARKS
 
 FPS = 25.0
@@ -100,3 +105,31 @@ def test_extremum_beside_right_gap_is_rejected() -> None:
     pos, reason = guarded_extremum(y, original, "min")
     assert pos is None
     assert "unfilled gap" in reason
+
+
+def test_impact_is_the_right_wrist_minimum() -> None:
+    frames = _series([0.8, 0.6, 0.2, 0.5], lm_id=NAME_TO_ID["right_wrist"])
+    assert detect_ball_impact(frames, "right") == (2, "ok")
+
+
+def test_impact_uses_the_serving_arm_wrist() -> None:
+    # the left wrist dips at frame 1; the right wrist stays constant
+    frames = _series([0.8, 0.2, 0.6], lm_id=NAME_TO_ID["left_wrist"])
+    assert detect_ball_impact(frames, "left") == (1, "ok")
+    # right wrist is constant 0.5: min is frame 0, but still "ok"
+    pos, reason = detect_ball_impact(frames, "right")
+    assert reason == "ok"
+
+
+def test_impact_guard_failure_propagates() -> None:
+    frames = _series([0.8, 0.6, 0.2, 0.5],
+                     ["ok", "ok", "interp", "ok"],
+                     lm_id=NAME_TO_ID["right_wrist"])
+    pos, reason = detect_ball_impact(frames, "right")
+    assert pos is None
+    assert "interpolated" in reason
+
+
+def test_impact_rejects_unknown_arm() -> None:
+    with pytest.raises(ValueError, match="serving_arm"):
+        detect_ball_impact(_series([0.5]), "both")

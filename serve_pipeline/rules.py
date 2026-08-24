@@ -9,6 +9,8 @@ Reference values are from Jacquier-Bret et al. (2024).
 
 from dataclasses import dataclass
 from typing import List, Optional
+from .angles import AngleReadings
+from .config import ClipParams
 
 
 @dataclass(frozen=True)
@@ -88,3 +90,57 @@ def evaluate(angle: Optional[float], rule: Rule) -> str:
         # Inside iff at least the lower bound; the upper side is unpenalised.
         return "inside" if angle >= rule.lo else "outside"
     raise ValueError(f"unknown band_kind: {rule.band_kind!r}")
+@dataclass
+class Indicator:
+    """One criterion's Stage 5 result: a deviation flag, or why there is none.
+
+    status is "inside", "outside", or "unavailable". angle is the value the
+    flag was read from (None when unavailable). detail carries the reason
+    an unavailable criterion was skipped, or, for a flagged knee, the
+    direction of the deviation ("insufficient_flexion") — the one-sided
+    band only ever flags too little flexion.
+    """
+
+    criterion: str
+    status: str
+    angle: Optional[float]
+    detail: Optional[str] = None
+
+
+def angle_for(readings: AngleReadings, rule: Rule) -> Optional[float]:
+    """The computed angle a rule evaluates, or None when unavailable.
+
+    AngleReadings names its four angles exactly like the rule ids, so the
+    rule id selects the matching field directly.
+    """
+    return getattr(readings, rule.id)
+def evaluate_all(readings: AngleReadings,
+                 clip_params: ClipParams) -> List[Indicator]:
+    """The Stage 5 indicator set: one Indicator per rule.
+
+    An indicator is a genuine flag only where all three conditions hold
+    together (rule_base_spec.md, Section 4): the camera plane supports the
+    criterion, the key frame was locatable, and the landmarks were
+    reliable there. A plane the camera cannot read is reported unavailable
+    before evaluation; an angle that could not be read (None) is reported
+    unavailable by evaluate itself. A flagged knee names its direction —
+    the one-sided band only ever flags insufficient flexion.
+    """
+    indicators: List[Indicator] = []
+    for rule in RULES:
+        if not plane_supported(rule, clip_params.camera_plane):
+            indicators.append(Indicator(
+                criterion=rule.id, status="unavailable", angle=None,
+                detail=f"camera plane {clip_params.camera_plane!r} does not "
+                       f"support this criterion (needs {rule.plane!r})"))
+            continue
+        angle = angle_for(readings, rule)
+        status = evaluate(angle, rule)
+        detail: Optional[str] = None
+        if status == "unavailable":
+            detail = "key frame not locatable or landmark unreliable"
+        elif status == "outside" and rule.band_kind == "lower_bound":
+            detail = "insufficient_flexion"
+        indicators.append(Indicator(criterion=rule.id, status=status,
+                                     angle=angle, detail=detail))
+    return indicators

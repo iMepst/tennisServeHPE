@@ -10,9 +10,12 @@ The four core outputs do not depend on fps; fps only sets the slow-motion
 QC flag and (upstream) the Stage 2 filter design.
 """
 
+import datetime
 import os
 from dataclasses import asdict, dataclass
 from typing import Any, Dict, List, Optional, Tuple
+
+from . import __version__
 from .angles import AngleReadings, compute_angles
 from .config import ClipParams
 from .interpolation import ProcessedFrame
@@ -29,6 +32,7 @@ from .persistence import (
     read_metadata,
     write_metadata,
 )
+from .rules import Indicator, evaluate_all
 
 
 def _resolve_video_meta(filtered_csv: str, stage1_meta: Optional[str],
@@ -104,3 +108,47 @@ def run_clip(filtered_csv: str, serving_arm: str, front_leg: str,
     return ClipResult(clip=clip, clip_params=clip_params, frames=frames,
                       key_events=key_events, slow_motion=slow_motion,
                       angles=angles)
+
+
+def assemble_result(result: ClipResult,
+                    filtered_csv: str) -> Dict[str, Any]:
+    """Stage 5 plus provenance, as the single result dict for the clip.
+
+    Runs rule evaluation on the angle readings and gathers the whole
+    in-memory chain (key frames, slow-motion flag, angles, indicators)
+    into one JSON-serialisable record. The dense per-frame trajectory is
+    deliberately left out: only the located instants and their readings
+    are reported.
+    """
+    indicators: List[Indicator] = evaluate_all(result.angles,
+                                               result.clip_params)
+    now = datetime.datetime.now(datetime.timezone.utc)
+    return {
+        "clip": result.clip,
+        "pipeline_version": __version__,
+        "commit": git_commit_hash(),
+        "created_utc": now.isoformat(),
+        "input_filtered_csv": os.path.abspath(filtered_csv),
+        "clip_params": asdict(result.clip_params),
+        "key_events": asdict(result.key_events),
+        "slow_motion": asdict(result.slow_motion),
+        "angles": asdict(result.angles),
+        "indicators": [asdict(i) for i in indicators],
+    }
+
+
+def write_result(filtered_csv: str,
+                 result_dict: Dict[str, Any]) -> str:
+    """Write the result dict to results/<clip>/run/result.json.
+
+    The run stage lives beside the persisted stage1/stage2 folders of the
+    same clip; only this one JSON is written (Stages 3-5 hold nothing else
+    on disk).
+    """
+    clip_dir = os.path.dirname(
+        os.path.dirname(os.path.abspath(filtered_csv)))
+    outdir = os.path.join(clip_dir, "run")
+    os.makedirs(outdir, exist_ok=True)
+    out_path = os.path.join(outdir, "result.json")
+    write_metadata(out_path, result_dict)
+    return out_path

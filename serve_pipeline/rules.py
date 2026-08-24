@@ -84,4 +84,7 @@ def evaluate(angle: Optional[float], rule: Rule) -> str:
     if rule.band_kind == "two_sided":
         # Inside iff within [mean-sd, mean+sd].
         return "inside" if rule.lo <= angle <= rule.hi else "outside"
+    if rule.band_kind == "lower_bound":
+        # Inside iff at least the lower bound; the upper side is unpenalised.
+        return "inside" if angle >= rule.lo else "outside"
     raise ValueError(f"unknown band_kind: {rule.band_kind!r}")

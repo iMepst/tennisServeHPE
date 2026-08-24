@@ -7,18 +7,26 @@ from serve_pipeline.angles import (
     AngleReadings,
     body_midpoint,
     compute_angles,
+    elbow_flexion,
+    front_knee_flexion,
     landmark_pixel,
     landmarks_reliable,
     pixel_point,
+    shoulder_elevation,
+    trunk_inclination,
+    turning_angle,
     vector_angle,
 )
 from serve_pipeline.config import ClipParams
+from serve_pipeline.keyevents import KeyEvents
 from serve_pipeline.interpolation import ProcessedFrame, ProcessedSample
 from serve_pipeline.landmarks import LANDMARK_NAMES, NAME_TO_ID, NUM_LANDMARKS
 
 
-def _params(width: int = 1920, height: int = 1080) -> ClipParams:
-    return ClipParams(serving_arm="right", front_leg="left",
+def _params(width: int = 1920, height: int = 1080,
+            serving_arm: str = "right",
+            front_leg: str = "left") -> ClipParams:
+    return ClipParams(serving_arm=serving_arm, front_leg=front_leg,
                       camera_plane="frontal", view_direction="front",
                       fps=25.0, frame_width=width, frame_height=height)
 
@@ -95,6 +103,18 @@ def test_landmark_pixel_rejects_missing_coordinates() -> None:
     sample.y = None
     with pytest.raises(ValueError, match="right_wrist"):
         landmark_pixel(frame, "right_wrist", _params())
+
+
+def test_landmarks_reliable_true_when_all_pass() -> None:
+    frame = _frame({"right_shoulder": (0.6, 0.2)})
+    assert landmarks_reliable(frame, ["right_shoulder", "right_elbow"])
+
+
+def test_landmarks_reliable_false_on_unreliable_sample() -> None:
+    frame = _frame({"right_shoulder": (0.6, 0.2)})
+    frame.samples[NAME_TO_ID["right_elbow"]].reliable = False
+    assert not landmarks_reliable(frame, ["right_shoulder", "right_elbow"])
+
 
 def test_landmarks_reliable_false_on_missing_coordinates() -> None:
     frame = _frame({"right_shoulder": (0.6, 0.2)})
@@ -195,3 +215,104 @@ def test_shoulder_elevation_raised_arm_and_side_selection() -> None:
     frame = _frame({"right_shoulder": (0.6, 0.5),
                     "right_elbow": (0.6, 0.2),
                     "right_hip": (0.6, 0.8),
+                    "left_shoulder": (0.4, 0.5),
+                    "left_elbow": (0.1, 0.5),
+                    "left_hip": (0.4, 0.8)})
+    assert shoulder_elevation(
+        frame, _params(1000, 1000, serving_arm="right")
+    ) == pytest.approx(180.0)
+    assert shoulder_elevation(
+        frame, _params(1000, 1000, serving_arm="left")
+    ) == pytest.approx(90.0)
+
+
+def test_body_midpoint_averages_both_sides_in_pixels() -> None:
+    frame = _frame({"left_hip": (0.4, 0.6), "right_hip": (0.6, 0.7)})
+    assert body_midpoint(frame, "left_hip", "right_hip",
+                         _params()) == (960.0, 702.0)
+
+
+def test_trunk_inclination_upright_is_zero_via_midpoints() -> None:
+    # individual sides are tilted, but both midpoints share x = 0.5:
+    # only the midpoint axis must count, and an upright trunk reads 0
+    frame = _frame({"left_hip": (0.4, 0.62), "right_hip": (0.6, 0.58),
+                    "left_shoulder": (0.45, 0.31),
+                    "right_shoulder": (0.55, 0.29)})
+    ang = trunk_inclination(frame, _params(1000, 1000))
+    assert ang == pytest.approx(0.0)
+
+
+def test_trunk_inclination_recovers_the_lean_not_its_complement() -> None:
+    lean = math.radians(25.0)
+    hip = (0.5, 0.6)
+    shoulder = (0.5 + 0.3 * math.sin(lean), 0.6 - 0.3 * math.cos(lean))
+    frame = _frame({"left_hip": hip, "right_hip": hip,
+                    "left_shoulder": shoulder, "right_shoulder": shoulder})
+    ang = trunk_inclination(frame, _params(1000, 1000))
+    assert ang == pytest.approx(25.0)     # not 155.0
+
+
+# Trophy frame: bent left leg (_LEGS) plus a shoulder pair for the trunk.
+_TROPHY = {**_LEGS, "left_shoulder": (0.45, 0.31),
+           "right_shoulder": (0.55, 0.29)}
+# Impact frame: bent right arm (_ARMS); right_hip defaults for shoulder.
+_IMPACT = _ARMS
+
+
+def _frames_with(trophy_idx: int, impact_idx: int,
+                 n: int = 5) -> list:
+    """Dense frames keyed by index, posed only at the two key frames."""
+    frames = []
+    for i in range(n):
+        pos = _TROPHY if i == trophy_idx else _IMPACT if i == impact_idx \
+            else {}
+        frame = _frame(pos)
+        frame.frame_index = i
+        frames.append(frame)
+    return frames
+
+
+def _locatable(trophy: int, impact: int) -> KeyEvents:
+    return KeyEvents(trophy_frame=trophy, impact_frame=impact,
+                     trophy_locatable=True, impact_locatable=True,
+                     reason="ok")
+
+
+def test_compute_angles_reads_each_at_its_key_frame() -> None:
+    p = _params(1000, 1000, serving_arm="right", front_leg="left")
+    frames = _frames_with(1, 3)
+    r = compute_angles(frames, _locatable(1, 3), p)
+    assert (r.trophy_frame, r.impact_frame) == (1, 3)
+    assert r.trunk_inclination == pytest.approx(
+        trunk_inclination(frames[1], p))
+    assert r.front_knee_flexion == pytest.approx(
+        front_knee_flexion(frames[1], p))
+    assert r.elbow_flexion == pytest.approx(elbow_flexion(frames[3], p))
+    assert r.shoulder_elevation == pytest.approx(
+        shoulder_elevation(frames[3], p))
+
+
+def test_compute_angles_gates_one_unreliable_landmark() -> None:
+    p = _params(1000, 1000, serving_arm="right", front_leg="left")
+    frames = _frames_with(1, 3)
+    frames[1].samples[NAME_TO_ID["left_knee"]].reliable = False
+    r = compute_angles(frames, _locatable(1, 3), p)
+    assert r.front_knee_flexion is None        # gated out
+    assert r.trunk_inclination is not None      # unaffected
+
+
+def test_compute_angles_skips_unlocatable_event() -> None:
+    p = _params(1000, 1000, serving_arm="right", front_leg="left")
+    frames = _frames_with(1, 3)
+    ke = KeyEvents(trophy_frame=None, impact_frame=3,
+                   trophy_locatable=False, impact_locatable=True,
+                   reason="trophy: no reliable samples in the series")
+    r = compute_angles(frames, ke, p)
+    assert r.trophy_frame is None
+    assert r.trunk_inclination is None and r.front_knee_flexion is None
+    assert r.impact_frame == 3 and r.elbow_flexion is not None
+
+
+def test_angle_readings_defaults_to_none() -> None:
+    r = AngleReadings(None, None, None, None, None, None)
+    assert r.trunk_inclination is None and r.shoulder_elevation is None

@@ -8,7 +8,7 @@ Reference values are from Jacquier-Bret et al. (2024).
 """
 
 from dataclasses import dataclass
-from typing import Optional
+from typing import List, Optional
 
 
 @dataclass(frozen=True)
@@ -54,4 +54,20 @@ RULES = [
     # the trophy frame. Frontal plane (front OR back view). Band [17.9, 32.1].
     Rule(id="trunk_inclination", key_frame="trophy", plane="frontal",
          mean=25.0, sd=7.1, band_kind="two_sided"),
+    # Front knee flexion: hip->knee vs knee->ankle on the front leg, read
+    # at the trophy frame. Sagittal plane. One-sided lower bound at 54.8:
+    # flag only insufficient flexion; deep flexion (greater racket
+    # velocity) is left unpenalised.
+    Rule(id="front_knee_flexion", key_frame="trophy", plane="sagittal",
+         mean=64.5, sd=9.7, band_kind="lower_bound"),
+    # Elbow flexion: shoulder->elbow vs elbow->wrist on the serving arm,
+    # read at ball impact. Plane-independent. Post-hoc-excluded reference
+    # value; band [19.3, 39.1].
+    Rule(id="elbow_flexion", key_frame="impact", plane=None,
+         mean=29.2, sd=9.9, band_kind="two_sided"),
+    # Shoulder elevation: shoulder->elbow vs shoulder->hip on the serving
+    # side, read at ball impact. Plane-independent. Post-hoc-excluded
+    # reference value; band [98.5, 110.7].
+    Rule(id="shoulder_elevation", key_frame="impact", plane=None,
+         mean=104.6, sd=6.1, band_kind="two_sided"),
 ]

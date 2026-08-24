@@ -29,3 +29,18 @@ class Rule:
     mean: float
     sd: float
     band_kind: str    # "two_sided" | "lower_bound"
+
+    # The band is mean +/- 1*sd: the factor is exactly 1, the minimal
+    # non-arbitrary choice. It operationalises the reference spread of the
+    # Jacquier-Bret sample; it is NOT a claim that correct technique ends
+    # at its edge. An "outside" reading is an attention flag for a coach,
+    # not a verdict on the serve.
+    @property
+    def lo(self) -> float:
+        """Lower band bound (mean - sd); the flag threshold both kinds use."""
+        return self.mean - self.sd
+
+    @property
+    def hi(self) -> float:
+        """Upper band bound (mean + sd); only the two-sided kind uses it."""
+        return self.mean + self.sd

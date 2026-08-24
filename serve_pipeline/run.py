@@ -143,17 +143,16 @@ def assemble_result(result: ClipResult,
 
 def write_result(filtered_csv: str,
                  result_dict: Dict[str, Any]) -> str:
-    """Write the result dict to results/<clip>/run/result.json.
+    """Write the result dict to results/<clip>/result.json.
 
-    The run stage lives beside the persisted stage1/stage2 folders of the
-    same clip; only this one JSON is written (Stages 3-5 hold nothing else
-    on disk).
+    The single JSON sits in the clip's results folder beside the
+    persisted stage1/stage2 subfolders; Stages 3-5 hold nothing else on
+    disk.
     """
     clip_dir = os.path.dirname(
         os.path.dirname(os.path.abspath(filtered_csv)))
-    outdir = os.path.join(clip_dir, "run")
-    os.makedirs(outdir, exist_ok=True)
-    out_path = os.path.join(outdir, "result.json")
+    os.makedirs(clip_dir, exist_ok=True)
+    out_path = os.path.join(clip_dir, "result.json")
     write_metadata(out_path, result_dict)
     return out_path
 

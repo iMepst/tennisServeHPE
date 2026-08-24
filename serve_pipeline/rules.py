@@ -44,3 +44,14 @@ class Rule:
     def hi(self) -> float:
         """Upper band bound (mean + sd); only the two-sided kind uses it."""
         return self.mean + self.sd
+
+
+# The four rules in one readable table. Reference mean/sd from
+# Jacquier-Bret et al. (2024); bands are derived (Rule.lo/Rule.hi), never
+# written out.
+RULES = [
+    # Trunk inclination: mid-hip -> mid-shoulder axis vs vertical, read at
+    # the trophy frame. Frontal plane (front OR back view). Band [17.9, 32.1].
+    Rule(id="trunk_inclination", key_frame="trophy", plane="frontal",
+         mean=25.0, sd=7.1, band_kind="two_sided"),
+]

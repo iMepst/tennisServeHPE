@@ -103,3 +103,15 @@ def elbow_flexion(frame: ProcessedFrame,
     """
     side = clip_params.serving_arm
     _check_side("serving_arm", side)
+    return turning_angle(frame, f"{side}_shoulder", f"{side}_elbow",
+                         f"{side}_wrist", clip_params)
+
+
+def shoulder_elevation(frame: ProcessedFrame,
+                       clip_params: ClipParams) -> float:
+    """Shoulder elevation at the ball-impact frame (rule_base_spec.md, R4).
+
+    Spanned at the serving shoulder: upper-arm vector shoulder->elbow
+    against the trunk vector shoulder->hip on the same side. Arm along
+    the trunk ~0, raised arm = larger angle.
+    """

@@ -4,6 +4,7 @@ from typing import Dict, Tuple
 import pytest
 
 from serve_pipeline.angles import (
+    AngleReadings,
     body_midpoint,
     compute_angles,
     landmark_pixel,
@@ -167,3 +168,9 @@ _ARMS = {
 def test_elbow_flexion_reads_the_serving_arm() -> None:
     frame = _frame(_ARMS)
     bent = elbow_flexion(frame, _params(1000, 1000, serving_arm="right"))
+    straight = elbow_flexion(frame, _params(1000, 1000, serving_arm="left"))
+    assert bent == pytest.approx(90.0)
+    assert straight == pytest.approx(0.0)
+
+
+def test_elbow_flexion_rejects_unknown_side() -> None:

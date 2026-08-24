@@ -56,6 +56,13 @@ def landmark_pixel(frame: ProcessedFrame, landmark_name: str,
     return pixel_point(sample.x, sample.y, clip_params)
 
 
+    for name in landmark_names:
+        sample = frame.samples[NAME_TO_ID[name]]
+        if not sample.reliable or sample.x is None or sample.y is None:
+            return False
+    return True
+
+
 def turning_angle(frame: ProcessedFrame, first: str, middle: str,
                   last: str, clip_params: ClipParams) -> float:
     """Turning angle of the chain first -> middle -> last, 0..180 deg.

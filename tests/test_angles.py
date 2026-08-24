@@ -4,13 +4,14 @@ from typing import Dict, Tuple
 import pytest
 
 from serve_pipeline.angles import (
+    compute_angles,
     landmark_pixel,
     pixel_point,
     vector_angle,
 )
 from serve_pipeline.config import ClipParams
 from serve_pipeline.interpolation import ProcessedFrame, ProcessedSample
-from serve_pipeline.landmarks import LANDMARK_NAMES, NUM_LANDMARKS
+from serve_pipeline.landmarks import LANDMARK_NAMES, NAME_TO_ID, NUM_LANDMARKS
 
 
 def _params(width: int = 1920, height: int = 1080) -> ClipParams:
@@ -91,3 +92,29 @@ def test_landmark_pixel_rejects_missing_coordinates() -> None:
     sample.y = None
     with pytest.raises(ValueError, match="right_wrist"):
         landmark_pixel(frame, "right_wrist", _params())
+
+def test_landmarks_reliable_false_on_missing_coordinates() -> None:
+    frame = _frame({"right_shoulder": (0.6, 0.2)})
+    frame.samples[NAME_TO_ID["right_elbow"]].x = None
+    assert not landmarks_reliable(frame, ["right_shoulder", "right_elbow"])
+
+
+def test_turning_angle_straight_chain_is_zero() -> None:
+    frame = _frame({"right_hip": (0.5, 0.2), "right_knee": (0.5, 0.5),
+                    "right_ankle": (0.5, 0.8)})
+    ang = turning_angle(frame, "right_hip", "right_knee", "right_ankle",
+                        _params(1000, 1000))
+    assert ang == pytest.approx(0.0)
+
+
+def test_pixel_rescaling_changes_a_non_square_angle() -> None:
+    # Same geometry, read on a 16:9 frame: the correct angle uses the
+    # pixel-rescaled vectors and differs from the un-rescaled one that a
+    # square-frame assumption would wrongly produce.
+    frame = _frame({"right_hip": (0.2, 0.4), "right_knee": (0.5, 0.5),
+                    "right_ankle": (0.6, 0.9)})
+    w, h = 1920, 1080
+    rescaled = turning_angle(frame, "right_hip", "right_knee",
+                             "right_ankle", _params(w, h))
+    assert rescaled == pytest.approx(
+        vector_angle((0.3 * w, 0.1 * h), (0.1 * w, 0.4 * h)))

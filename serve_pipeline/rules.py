@@ -71,3 +71,14 @@ RULES = [
     Rule(id="shoulder_elevation", key_frame="impact", plane=None,
          mean=104.6, sd=6.1, band_kind="two_sided"),
 ]
+
+def evaluate(angle: Optional[float], rule: Rule) -> str:
+    """Deviation indicator for one angle: inside / outside / unavailable.
+
+    A None angle means the criterion could not be read (event not
+    locatable, or a landmark unreliable at the key frame): it is reported
+    "unavailable", never forced to a value.
+    """
+    if angle is None:
+        return "unavailable"
+    raise ValueError(f"unknown band_kind: {rule.band_kind!r}")

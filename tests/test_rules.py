@@ -13,6 +13,8 @@ from serve_pipeline.rules import (
 
 def _rule(rule_id: str) -> Rule:
     return next(r for r in RULES if r.id == rule_id)
+
+
 def _params(camera_plane: str) -> ClipParams:
     return ClipParams(serving_arm="right", front_leg="left",
                       camera_plane=camera_plane, view_direction="front",

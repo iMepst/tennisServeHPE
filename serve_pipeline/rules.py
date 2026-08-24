@@ -161,6 +161,6 @@ def evaluate_all(readings: AngleReadings,
             detail = "key frame not locatable or landmark unreliable"
         elif status == "outside" and rule.band_kind == "lower_bound":
             detail = "insufficient_flexion"
-        indicators.append(Indicator(criterion=rule.id, status=status,
-                                     angle=angle, detail=detail))
+        indicators.append(Indicator(
+            criterion=rule.id, status=status, angle=angle, detail=detail))
     return indicators

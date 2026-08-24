@@ -10,7 +10,9 @@ The four core outputs do not depend on fps; fps only sets the slow-motion
 QC flag and (upstream) the Stage 2 filter design.
 """
 
+import argparse
 import datetime
+import logging
 import os
 from dataclasses import asdict, dataclass
 from typing import Any, Dict, List, Optional, Tuple
@@ -33,6 +35,8 @@ from .persistence import (
     write_metadata,
 )
 from .rules import Indicator, evaluate_all
+
+logger = logging.getLogger(__name__)
 
 
 def _resolve_video_meta(filtered_csv: str, stage1_meta: Optional[str],
@@ -152,3 +156,82 @@ def write_result(filtered_csv: str,
     out_path = os.path.join(outdir, "result.json")
     write_metadata(out_path, result_dict)
     return out_path
+
+
+def _log_summary(result: ClipResult, result_dict: Dict[str, Any],
+                 out_path: str) -> None:
+    ev = result.key_events
+    logger.info("Run complete for clip %s", result.clip)
+    logger.info("  result JSON: %s", out_path)
+    if ev.trophy_locatable and ev.impact_locatable:
+        logger.info("  key frames:  trophy %d, impact %d",
+                    ev.trophy_frame, ev.impact_frame)
+    else:
+        logger.info("  key frames:  not locatable (%s)", ev.reason)
+    sm = result.slow_motion
+    if sm.assessable:
+        logger.info("  slow-motion: %s (trophy->impact %.2f s)",
+                    "likely" if sm.likely_slow_motion else "no",
+                    sm.trophy_to_impact_s)
+    for ind in result_dict["indicators"]:
+        angle = ind["angle"]
+        logger.info("  %-18s %-11s %s", ind["criterion"], ind["status"],
+                    "" if angle is None else f"{angle:.1f} deg")
+
+
+def process_clip(filtered_csv: str, serving_arm: str, front_leg: str,
+                 camera_plane: str, view_direction: str,
+                 stage1_meta: Optional[str] = None,
+                 fps: Optional[float] = None,
+                 frame_width: Optional[int] = None,
+                 frame_height: Optional[int] = None) -> str:
+    """Full Stage 3-5 run for one clip; returns the result JSON path."""
+    result = run_clip(filtered_csv, serving_arm, front_leg, camera_plane,
+                      view_direction, stage1_meta, fps, frame_width,
+                      frame_height)
+    result_dict = assemble_result(result, filtered_csv)
+    out_path = write_result(filtered_csv, result_dict)
+    _log_summary(result, result_dict, out_path)
+    return out_path
+
+
+def main() -> None:
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
+    parser = argparse.ArgumentParser(
+        description="Stages 3-5: key events, angles and rule evaluation "
+                    "for one clip; writes results/<clip>/run/result.json.")
+    parser.add_argument("filtered_csv",
+                        help="path to a Stage 2 stage2/filtered.csv")
+    # Manually recorded per-clip parameters (anatomical, body-relative).
+    parser.add_argument("--serving-arm", required=True,
+                        choices=("left", "right"))
+    parser.add_argument("--front-leg", required=True,
+                        choices=("left", "right"))
+    parser.add_argument("--camera-plane", required=True,
+                        choices=("frontal", "sagittal"))
+    parser.add_argument("--view-direction", required=True,
+                        help="front/back for frontal, left/right for "
+                             "sagittal (provenance only)")
+    # fps and frame size default to the Stage 1 meta; override if needed.
+    parser.add_argument("--stage1-meta", default=None,
+                        help="Stage 1 meta.json; auto-detected under the "
+                             "clip's stage1/ folder if omitted")
+    parser.add_argument("--fps", type=float, default=None)
+    parser.add_argument("--frame-width", type=int, default=None)
+    parser.add_argument("--frame-height", type=int, default=None)
+    args = parser.parse_args()
+    process_clip(
+        filtered_csv=args.filtered_csv,
+        serving_arm=args.serving_arm,
+        front_leg=args.front_leg,
+        camera_plane=args.camera_plane,
+        view_direction=args.view_direction,
+        stage1_meta=args.stage1_meta,
+        fps=args.fps,
+        frame_width=args.frame_width,
+        frame_height=args.frame_height,
+    )
+
+
+if __name__ == "__main__":
+    main()

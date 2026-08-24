@@ -87,3 +87,19 @@ def front_knee_flexion(frame: ProcessedFrame,
 
     Turning angle hip->knee vs knee->ankle on the front-leg side:
     straight leg ~0, bent leg = positive flexion.
+    """
+    side = clip_params.front_leg
+    _check_side("front_leg", side)
+    return turning_angle(frame, f"{side}_hip", f"{side}_knee",
+                         f"{side}_ankle", clip_params)
+
+
+def elbow_flexion(frame: ProcessedFrame,
+                  clip_params: ClipParams) -> float:
+    """Elbow flexion at the ball-impact frame (rule_base_spec.md, R3).
+
+    Turning angle shoulder->elbow vs elbow->wrist on the serving-arm
+    side: straight arm ~0.
+    """
+    side = clip_params.serving_arm
+    _check_side("serving_arm", side)

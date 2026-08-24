@@ -141,3 +141,29 @@ _LEGS = {
 
 
 def test_front_knee_flexion_reads_the_front_leg() -> None:
+    frame = _frame(_LEGS)
+    bent = front_knee_flexion(frame, _params(1000, 1000, front_leg="left"))
+    straight = front_knee_flexion(
+        frame, _params(1000, 1000, front_leg="right"))
+    assert bent == pytest.approx(90.0)
+    assert straight == pytest.approx(0.0)
+
+
+def test_front_knee_flexion_rejects_unknown_side() -> None:
+    with pytest.raises(ValueError, match="front_leg"):
+        front_knee_flexion(_frame(_LEGS),
+                           _params(1000, 1000, front_leg="both"))
+
+
+# Right arm bent at a right angle, left arm hanging straight down.
+_ARMS = {
+    "right_shoulder": (0.6, 0.2), "right_elbow": (0.6, 0.5),
+    "right_wrist": (0.9, 0.5),
+    "left_shoulder": (0.4, 0.2), "left_elbow": (0.4, 0.5),
+    "left_wrist": (0.4, 0.8),
+}
+
+
+def test_elbow_flexion_reads_the_serving_arm() -> None:
+    frame = _frame(_ARMS)
+    bent = elbow_flexion(frame, _params(1000, 1000, serving_arm="right"))

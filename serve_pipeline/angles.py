@@ -115,3 +115,19 @@ def shoulder_elevation(frame: ProcessedFrame,
     against the trunk vector shoulder->hip on the same side. Arm along
     the trunk ~0, raised arm = larger angle.
     """
+    side = clip_params.serving_arm
+    _check_side("serving_arm", side)
+    sx, sy = landmark_pixel(frame, f"{side}_shoulder", clip_params)
+    ex, ey = landmark_pixel(frame, f"{side}_elbow", clip_params)
+    hx, hy = landmark_pixel(frame, f"{side}_hip", clip_params)
+    return vector_angle((ex - sx, ey - sy), (hx - sx, hy - sy))
+
+
+def body_midpoint(frame: ProcessedFrame, left_name: str, right_name: str,
+                  clip_params: ClipParams) -> Tuple[float, float]:
+    """Pixel midpoint of a left/right landmark pair.
+
+    Builds the mid-hip and mid-shoulder points of the trunk axis
+    (rule_base_spec.md, R1).
+    """
+    lx, ly = landmark_pixel(frame, left_name, clip_params)

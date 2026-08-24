@@ -8,6 +8,7 @@ from serve_pipeline.angles import (
     body_midpoint,
     compute_angles,
     landmark_pixel,
+    landmarks_reliable,
     pixel_point,
     vector_angle,
 )
@@ -174,3 +175,23 @@ def test_elbow_flexion_reads_the_serving_arm() -> None:
 
 
 def test_elbow_flexion_rejects_unknown_side() -> None:
+    with pytest.raises(ValueError, match="serving_arm"):
+        elbow_flexion(_frame(_ARMS),
+                      _params(1000, 1000, serving_arm="up"))
+
+
+def test_shoulder_elevation_zero_with_arm_along_trunk() -> None:
+    # elbow straight below the shoulder, hip below the shoulder as well
+    frame = _frame({"right_shoulder": (0.6, 0.2),
+                    "right_elbow": (0.6, 0.5),
+                    "right_hip": (0.6, 0.6)})
+    ang = shoulder_elevation(frame, _params(1000, 1000))
+    assert ang == pytest.approx(0.0)
+
+
+def test_shoulder_elevation_raised_arm_and_side_selection() -> None:
+    # right arm raised straight overhead (opposite the trunk direction),
+    # left arm horizontal (90 deg to its trunk vector)
+    frame = _frame({"right_shoulder": (0.6, 0.5),
+                    "right_elbow": (0.6, 0.2),
+                    "right_hip": (0.6, 0.8),

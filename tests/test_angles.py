@@ -226,6 +226,20 @@ def test_shoulder_elevation_raised_arm_and_side_selection() -> None:
     ) == pytest.approx(90.0)
 
 
+def test_shoulder_elevation_cardinal_arm_positions() -> None:
+    # One arm (right), shoulder above the hip so the trunk vector points
+    # down: arm along the trunk -> 0, horizontal away -> 90, straight up
+    # -> 180. Square frame so normalized geometry carries to pixels.
+    def ang(elbow: Tuple[float, float]) -> float:
+        frame = _frame({"right_shoulder": (0.6, 0.5),
+                        "right_elbow": elbow,
+                        "right_hip": (0.6, 0.8)})
+        return shoulder_elevation(frame, _params(1000, 1000))
+    assert ang((0.6, 0.7)) == pytest.approx(0.0)      # straight down
+    assert ang((0.3, 0.5)) == pytest.approx(90.0)     # horizontal away
+    assert ang((0.6, 0.2)) == pytest.approx(180.0)    # straight up
+
+
 def test_body_midpoint_averages_both_sides_in_pixels() -> None:
     frame = _frame({"left_hip": (0.4, 0.6), "right_hip": (0.6, 0.7)})
     assert body_midpoint(frame, "left_hip", "right_hip",

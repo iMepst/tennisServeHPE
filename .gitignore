@@ -4,7 +4,6 @@ __pycache__/
 *.pyc
 .idea/
 .pytest_cache/
-docs/
 
 # large binaries, re-downloadable
 models/*.task

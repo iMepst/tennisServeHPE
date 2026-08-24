@@ -9,6 +9,7 @@ Reference values are from Jacquier-Bret et al. (2024).
 
 from dataclasses import dataclass
 from typing import List, Optional
+
 from .angles import AngleReadings
 from .config import ClipParams
 
@@ -74,6 +75,7 @@ RULES = [
          mean=104.6, sd=6.1, band_kind="two_sided"),
 ]
 
+
 def evaluate(angle: Optional[float], rule: Rule) -> str:
     """Deviation indicator for one angle: inside / outside / unavailable.
 
@@ -90,6 +92,22 @@ def evaluate(angle: Optional[float], rule: Rule) -> str:
         # Inside iff at least the lower bound; the upper side is unpenalised.
         return "inside" if angle >= rule.lo else "outside"
     raise ValueError(f"unknown band_kind: {rule.band_kind!r}")
+
+
+def plane_supported(rule: Rule, camera_plane: str) -> bool:
+    """Whether the camera plane reads this rule's angle cleanly.
+
+    The two trophy criteria are plane-bound and orthogonal: a single
+    camera faces only one plane, so only that criterion is read cleanly
+    (the other is foreshortened). Trunk inclination needs "frontal",
+    front knee flexion needs "sagittal". The impact criteria (plane
+    None) are plane-independent and always supported.
+    """
+    if rule.plane is None:
+        return True
+    return rule.plane == camera_plane
+
+
 @dataclass
 class Indicator:
     """One criterion's Stage 5 result: a deviation flag, or why there is none.
@@ -114,6 +132,8 @@ def angle_for(readings: AngleReadings, rule: Rule) -> Optional[float]:
     rule id selects the matching field directly.
     """
     return getattr(readings, rule.id)
+
+
 def evaluate_all(readings: AngleReadings,
                  clip_params: ClipParams) -> List[Indicator]:
     """The Stage 5 indicator set: one Indicator per rule.

@@ -4,6 +4,7 @@ from typing import Dict, Tuple
 import pytest
 
 from serve_pipeline.angles import (
+    body_midpoint,
     compute_angles,
     landmark_pixel,
     pixel_point,
@@ -118,3 +119,25 @@ def test_pixel_rescaling_changes_a_non_square_angle() -> None:
                              "right_ankle", _params(w, h))
     assert rescaled == pytest.approx(
         vector_angle((0.3 * w, 0.1 * h), (0.1 * w, 0.4 * h)))
+    assert rescaled != pytest.approx(vector_angle((0.3, 0.1), (0.1, 0.4)))
+
+
+def test_turning_angle_right_angle_bend() -> None:
+    frame = _frame({"right_hip": (0.2, 0.5), "right_knee": (0.5, 0.5),
+                    "right_ankle": (0.5, 0.8)})
+    ang = turning_angle(frame, "right_hip", "right_knee", "right_ankle",
+                        _params(1000, 1000))
+    assert ang == pytest.approx(90.0)
+
+
+# A frame with the left leg bent at a right angle and the right leg
+# straight, on a square frame so normalized geometry carries to pixels.
+_LEGS = {
+    "left_hip": (0.2, 0.5), "left_knee": (0.5, 0.5),
+    "left_ankle": (0.5, 0.8),
+    "right_hip": (0.7, 0.2), "right_knee": (0.7, 0.5),
+    "right_ankle": (0.7, 0.8),
+}
+
+
+def test_front_knee_flexion_reads_the_front_leg() -> None:

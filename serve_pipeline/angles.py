@@ -74,3 +74,16 @@ def turning_angle(frame: ProcessedFrame, first: str, middle: str,
     bx, by = landmark_pixel(frame, middle, clip_params)
     cx, cy = landmark_pixel(frame, last, clip_params)
     return vector_angle((bx - ax, by - ay), (cx - bx, cy - by))
+
+
+def _check_side(name: str, side: str) -> None:
+    if side not in ("left", "right"):
+        raise ValueError(f"{name} must be 'left' or 'right', got {side!r}")
+
+
+def front_knee_flexion(frame: ProcessedFrame,
+                       clip_params: ClipParams) -> float:
+    """Front knee flexion at the trophy frame (rule_base_spec.md, R2).
+
+    Turning angle hip->knee vs knee->ankle on the front-leg side:
+    straight leg ~0, bent leg = positive flexion.

@@ -31,10 +31,12 @@ from .layout import clip_from_stage_file
 from .persistence import (
     git_commit_hash,
     read_filtered_csv,
+    read_landmarks_csv,
     read_metadata,
     write_metadata,
 )
 from .rules import Indicator, evaluate_all
+from .visualization import save_key_frame_stills
 
 logger = logging.getLogger(__name__)
 
@@ -157,11 +159,56 @@ def write_result(filtered_csv: str,
     return out_path
 
 
+def _angle_line(name: str, value: Optional[float]) -> str:
+    return f"{name}: {value:.1f} deg" if value is not None else f"{name}: n/a"
+
+
+def write_key_frame_stills(video_path: str, stage1_meta: str,
+                           filtered_csv: str,
+                           result: ClipResult) -> Optional[str]:
+    """Render results/<clip>/key_frames.png: the trophy and impact stills.
+
+    Reads the raw landmarks persisted by Stage 1 for the pose overlay and
+    the located key frames from the Stage 3 result, labels each with the
+    angles read at it (Stage 4), and tiles them side by side. Returns the
+    PNG path, or None when neither key frame was locatable.
+    """
+    ev = result.key_events
+    ang = result.angles
+    specs: List[Tuple[int, List[str]]] = []
+    if ev.trophy_locatable and ev.trophy_frame is not None:
+        specs.append((ev.trophy_frame, [
+            f"TROPHY  frame {ev.trophy_frame}",
+            _angle_line("trunk incl.", ang.trunk_inclination),
+            _angle_line("knee flex", ang.front_knee_flexion)]))
+    if ev.impact_locatable and ev.impact_frame is not None:
+        specs.append((ev.impact_frame, [
+            f"IMPACT  frame {ev.impact_frame}",
+            _angle_line("elbow flex", ang.elbow_flexion),
+            _angle_line("shoulder elev", ang.shoulder_elevation)]))
+    if not specs:
+        return None
+    # The stills are an optional QC figure: they need the source video and
+    # the Stage 1 raw landmarks, neither of which Stages 3-5 otherwise
+    # require. Skip (rather than fail the run) when either is unavailable.
+    landmarks_csv = os.path.join(os.path.dirname(stage1_meta), "landmarks.csv")
+    if not (os.path.isfile(video_path) and os.path.isfile(landmarks_csv)
+            and os.path.getsize(landmarks_csv) > 0):
+        logger.info("  key stills:  skipped (source video or raw landmarks "
+                    "unavailable)")
+        return None
+    frame_poses = read_landmarks_csv(landmarks_csv)
+    clip_dir = os.path.dirname(
+        os.path.dirname(os.path.abspath(filtered_csv)))
+    out_path = os.path.join(clip_dir, "key_frames.png")
+    return save_key_frame_stills(video_path, frame_poses, specs, out_path)
 def _log_summary(result: ClipResult, result_dict: Dict[str, Any],
-                 out_path: str) -> None:
+                 out_path: str, stills_path: Optional[str] = None) -> None:
     ev = result.key_events
     logger.info("Run complete for clip %s", result.clip)
     logger.info("  result JSON: %s", out_path)
+    if stills_path is not None:
+        logger.info("  key stills:  %s", stills_path)
     if ev.trophy_locatable and ev.impact_locatable:
         logger.info("  key frames:  trophy %d, impact %d",
                     ev.trophy_frame, ev.impact_frame)

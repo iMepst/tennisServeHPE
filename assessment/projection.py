@@ -137,3 +137,23 @@ def projection_curves(config: PipelineConfig) -> List[ProjectionCurve]:
             kind="closed_form" if closed else "numeric",
             a_true=rule.mean, thetas=thetas, projected=projected))
     return curves
+
+
+def _print_sanity_table(config: PipelineConfig) -> None:
+    """Print the projected angle of each criterion across the theta sweep.
+
+    A quick eye check, not an output artifact: every row starts at its
+    true angle (theta = 0) and shrinks as the viewpoint tilts.
+    """
+    curves = projection_curves(config)
+    header = "criterion".ljust(20) + "".join(
+        f"{th:7.0f}" for th in curves[0].thetas)
+    print(header)
+    for c in curves:
+        row = c.criterion.ljust(20) + "".join(
+            f"{a:7.1f}" for a in c.projected)
+        print(row)
+
+
+if __name__ == "__main__":
+    _print_sanity_table(PipelineConfig())

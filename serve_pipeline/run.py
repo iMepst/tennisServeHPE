@@ -27,7 +27,8 @@ from .keyevents import (
     detect_key_events,
     flag_possible_slow_motion,
 )
-from .layout import clip_from_stage_file
+from .layout import STAGE1, STAGE2, clip_from_stage_file, clip_from_video, \
+    stage_dir
 from .persistence import (
     git_commit_hash,
     read_filtered_csv,
@@ -36,9 +37,51 @@ from .persistence import (
     write_metadata,
 )
 from .rules import Indicator, evaluate_all
+from .stage1_extract import DEFAULT_MODEL, run_stage1
+from .stage2_process import GATING_META_JSON, run_stage2a, run_stage2b
 from .visualization import save_key_frame_stills
 
 logger = logging.getLogger(__name__)
+
+def ensure_filtered(video_path: str, outdir: str = "results",
+                    reuse: bool = True,
+                    model_path: Optional[str] = None) -> Tuple[str, str]:
+    """Run (or reuse) Stages 1-2 and return (filtered_csv, stage1_meta).
+
+    Stages 1-2 persist to disk; when reuse is set, a stage whose output
+    already exists is skipped rather than recomputed (extraction is the
+    slow step). Returns the paths of the Stage 2 filtered trajectory and
+    the Stage 1 meta JSON, the two inputs the in-memory stages need.
+    """
+    clip = clip_from_video(video_path)
+    stage1_dir = stage_dir(outdir, clip, STAGE1)
+    stage2_dir = stage_dir(outdir, clip, STAGE2)
+    landmarks_csv = os.path.join(stage1_dir, "landmarks.csv")
+    stage1_meta = os.path.join(stage1_dir, "meta.json")
+    gated_csv = os.path.join(stage2_dir, "gated.csv")
+    gating_meta = os.path.join(stage2_dir, GATING_META_JSON)
+    filtered_csv = os.path.join(stage2_dir, "filtered.csv")
+
+    # Stage 1: pose extraction (the slow step).
+    if reuse and os.path.isfile(landmarks_csv):
+        logger.info("Stage 1: reusing %s", landmarks_csv)
+    else:
+        run_stage1(video_path, outdir=outdir,
+                   model_path=model_path or DEFAULT_MODEL)
+
+    # Stage 2a: visibility gating.
+    if reuse and os.path.isfile(gated_csv):
+        logger.info("Stage 2a: reusing %s", gated_csv)
+    else:
+        run_stage2a(landmarks_csv, meta_path=stage1_meta)
+
+    # Stage 2b: interpolation + low-pass filtering.
+    if reuse and os.path.isfile(filtered_csv):
+        logger.info("Stage 2b: reusing %s", filtered_csv)
+    else:
+        run_stage2b(gated_csv, meta_path=gating_meta)
+
+    return filtered_csv, stage1_meta
 
 
 def _resolve_video_meta(filtered_csv: str, stage1_meta: Optional[str],
@@ -225,29 +268,37 @@ def _log_summary(result: ClipResult, result_dict: Dict[str, Any],
                     "" if angle is None else f"{angle:.1f} deg")
 
 
-def process_clip(filtered_csv: str, serving_arm: str, front_leg: str,
+def process_clip(video_path: str, serving_arm: str, front_leg: str,
                  camera_plane: str, view_direction: str,
-                 stage1_meta: Optional[str] = None,
+                 outdir: str = "results", reuse: bool = True,
+                 model_path: Optional[str] = None,
                  fps: Optional[float] = None,
                  frame_width: Optional[int] = None,
                  frame_height: Optional[int] = None) -> str:
-    """Full Stage 3-5 run for one clip; returns the result JSON path."""
+    """Run one clip end to end (Stages 1-5); returns the result JSON path.
+
+    Stages 1-2 run (or reuse) on disk; Stages 3-5 run in memory. fps and
+    frame size default to the Stage 1 meta and can be overridden per clip.
+    """
+    filtered_csv, stage1_meta = ensure_filtered(
+        video_path, outdir=outdir, reuse=reuse, model_path=model_path)
     result = run_clip(filtered_csv, serving_arm, front_leg, camera_plane,
                       view_direction, stage1_meta, fps, frame_width,
                       frame_height)
     result_dict = assemble_result(result, filtered_csv)
     out_path = write_result(filtered_csv, result_dict)
-    _log_summary(result, result_dict, out_path)
+    stills_path = write_key_frame_stills(
+        video_path, stage1_meta, filtered_csv, result)
+    _log_summary(result, result_dict, out_path, stills_path)
     return out_path
 
 
 def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(message)s")
     parser = argparse.ArgumentParser(
-        description="Stages 3-5: key events, angles and rule evaluation "
-                    "for one clip; writes results/<clip>/run/result.json.")
-    parser.add_argument("filtered_csv",
-                        help="path to a Stage 2 stage2/filtered.csv")
+        description="Run one serve clip end to end (Stages 1-5); writes "
+                    "results/<clip>/result.json.")
+    parser.add_argument("video", help="path to the input serve video")
     # Manually recorded per-clip parameters (anatomical, body-relative).
     parser.add_argument("--serving-arm", required=True,
                         choices=("left", "right"))
@@ -258,21 +309,27 @@ def main() -> None:
     parser.add_argument("--view-direction", required=True,
                         help="front/back for frontal, left/right for "
                              "sagittal (provenance only)")
+    parser.add_argument("--outdir", default="results",
+                        help="results root (default: results)")
+    parser.add_argument("--model", default=None,
+                        help="path to a pose_landmarker .task file "
+                             "(default: the heavy model)")
+    parser.add_argument("--no-reuse", dest="reuse", action="store_false",
+                        help="recompute Stages 1-2 even if outputs exist")
     # fps and frame size default to the Stage 1 meta; override if needed.
-    parser.add_argument("--stage1-meta", default=None,
-                        help="Stage 1 meta.json; auto-detected under the "
-                             "clip's stage1/ folder if omitted")
     parser.add_argument("--fps", type=float, default=None)
     parser.add_argument("--frame-width", type=int, default=None)
     parser.add_argument("--frame-height", type=int, default=None)
     args = parser.parse_args()
     process_clip(
-        filtered_csv=args.filtered_csv,
+        video_path=args.video,
         serving_arm=args.serving_arm,
         front_leg=args.front_leg,
         camera_plane=args.camera_plane,
         view_direction=args.view_direction,
-        stage1_meta=args.stage1_meta,
+        outdir=args.outdir,
+        reuse=args.reuse,
+        model_path=args.model,
         fps=args.fps,
         frame_width=args.frame_width,
         frame_height=args.frame_height,

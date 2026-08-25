@@ -11,10 +11,12 @@ before the serve -- so every quantity is evaluated over a sweep of theta.
 """
 
 import math
+from dataclasses import dataclass
 from typing import List, Tuple
 
 from serve_pipeline.angles import vector_angle
 from serve_pipeline.config import PipelineConfig
+from serve_pipeline.rules import RULES
 
 
 def _tilt_about_vertical(v: Tuple[float, float, float],
@@ -93,3 +95,45 @@ def theta_values(config: PipelineConfig) -> List[float]:
     # Number of steps between the bounds; +1 to include the upper end.
     n = int(round((hi - lo) / step))
     return [lo + i * step for i in range(n + 1)]
+
+
+# The trunk is a single inclination (closed form); the other three are
+# two-segment joints (numeric). Every other criterion defaults to numeric.
+_CLOSED_FORM = {"trunk_inclination"}
+
+
+@dataclass
+class ProjectionCurve:
+    """Per-criterion projected angle across the theta sweep.
+
+    a_true is the prescribed true angle (each rule's reference mean), and
+    projected[i] is how that angle appears at thetas[i]. kind records which
+    model produced it, "closed_form" (trunk) or "numeric" (the joints).
+    """
+
+    criterion: str
+    kind: str
+    a_true: float
+    thetas: List[float]
+    projected: List[float]
+
+
+def projection_curves(config: PipelineConfig) -> List[ProjectionCurve]:
+    """Projection curve for each of the four criteria over the theta sweep.
+
+    The true angle of every criterion is prescribed as its reference mean
+    (rules.py); no recording enters. The trunk uses the closed form, the
+    joints the numeric projection, so a criterion's segment length -- how
+    strongly it foreshortens -- shows directly in its curve.
+    """
+    thetas = theta_values(config)
+    curves: List[ProjectionCurve] = []
+    for rule in RULES:
+        closed = rule.id in _CLOSED_FORM
+        model = trunk_projected_angle if closed else numeric_projected_angle
+        projected = [model(rule.mean, th) for th in thetas]
+        curves.append(ProjectionCurve(
+            criterion=rule.id,
+            kind="closed_form" if closed else "numeric",
+            a_true=rule.mean, thetas=thetas, projected=projected))
+    return curves

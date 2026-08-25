@@ -10,9 +10,34 @@ partly from camera placement and partly from the player's lean, unknown
 before the serve -- so every quantity is evaluated over a sweep of theta.
 """
 
-from typing import List
+import math
+from typing import List, Tuple
 
 from serve_pipeline.config import PipelineConfig
+
+
+def trunk_projected_angle(a_true: float, theta: float) -> float:
+    """Projected trunk inclination in degrees (closed form).
+
+    Trunk inclination is a single line (the trunk axis) read against the
+    fixed image vertical, so the projection has a closed form: tilting the
+    lean plane by theta foreshortens only the horizontal component, giving
+    tan(a_proj) = tan(a_true) * cos(theta). Inputs and output in degrees.
+    """
+    a = math.radians(a_true)
+    t = math.radians(theta)
+    return math.degrees(math.atan(math.tan(a) * math.cos(t)))
+
+
+def project_orthographic(v: Tuple[float, float, float]) -> Tuple[float, float]:
+    """Orthographic image of a 3D direction: keep x and y, drop depth z.
+
+    A level camera and parallel projection. This ignores perspective, so
+    the projection error it reports is a LOWER BOUND: a real lens adds
+    foreshortening on top, more so the closer or more off-centre the
+    player. The far-player assumption makes the gap small but non-zero.
+    """
+    return v[0], v[1]
 
 
 def theta_values(config: PipelineConfig) -> List[float]:

@@ -31,7 +31,7 @@ whole assessment (build one analysis module per source).
 
 | # | Error source | Definition | How it is handled | Quantifiable? | Output artifact |
 |---|--------------|------------|-------------------|---------------|-----------------|
-| E1 | **Pose estimation error** | estimated landmark − true image position | measured empirically vs. **blinded manual annotation**; also fixes σ for E-propagation | yes | per-landmark pixel error → σ (px) |
+| E1 | **Pose estimation error** | estimated landmark − true image position | σ **taken from the estimator's reported accuracy** (BlazePose PDJ) and **swept as a sensitivity range**, not measured on the clips | yes | induced spread over a σ band |
 | E2 | **Projection error** | true spatial angle − monocular projected angle | computed **analytically** from the projection relation, no recording | yes | projected-angle curves over θ |
 | E3 | **Event error** | selected frame − true instant (incl. pelvis-proxy offset) | read from the **manual frame check** | yes | reported as a **rate** |
 | E4 | **Definitional mismatch** | surface landmarks vs. joint centres behind the reference values | **not quantifiable** (needs joint-centre ground truth) → limitations | no | qualitative note (worst on trunk inclination) |
@@ -64,38 +64,24 @@ fully synthetic / Monte Carlo.
 - **Treat each criterion separately**: a fixed pixel error subtends a larger angle across a
   **shorter** segment, so the short arm segments (elbow, shoulder) react more strongly than the
   longer trunk/leg segments.
-- **σ is left open in the synthetic model**, then **replaced by the σ measured against blinded
-  manual annotation** (E1). This is the single point where the synthetic analysis and the
-  empirical accuracy check meet — parameterise σ so it can be swapped in without re-plumbing.
+- **σ is parameterised**, fixed from the estimator's reported accuracy (BlazePose PDJ), and
+  **swept over a band** (`config.sigma_sweep`) rather than measured on the clips. The induced
+  spread and the decidability verdict are therefore reported as a **function of the noise level**,
+  a sensitivity analysis rather than a single operating point.
 - **Known simplification (→ limitations):** noise is modelled as isotropic and independent between
   frames, whereas real error is temporally correlated and larger in the fast serve phases. Figures
   are indicative, not exact.
 
-**Outputs for Results:** per-criterion angular spread (SD, deg) as a function of θ and σ; the
-projected-vs-true angle curves; the empirically measured σ.
+**Outputs for Results:** per-criterion angular spread (SD, deg) as a function of θ over the σ band;
+the projected-vs-true angle curves.
 
 ---
 
 ## 3. Decision stability & the decidability criterion (Q2 + Q3)
 
-The system emits a **decision, not an angle**, so the reported quantity is **whether the verdict
-flips**, not the angular error itself.
-
-### 3a. Decision instability (Monte Carlo over a synthetic population)
-- Draw **true angles from the reference distribution** (mean, SD from the rule base) as a stand-in
-  for a population of players. (This spread is a **between-study** spread used as a proxy for the
-  plausible execution range.)
-- For each simulated serve, form **two verdicts**:
-  1. from the **true angle**,
-  2. from the **projected + noisy angle** (Section 2).
-- Test both against the **rule band** (`rule_base_spec.md`).
-- **Decision instability** = share of serves whose verdict **changes**. **Split it into:**
-  - **false flags** (flagged in error), and
-  - **missed deviations**.
-- **Known dependence (→ report as caveat):** the **same SD fixes both the band and the population**
-  the true angles are drawn from, so simulated angles concentrate near the mean, away from the band
-  edges. Instability is therefore **conditional on this population**, read as **indicative not
-  exact**, and **understates** what a wider-spread population would show (conservative).
+The system emits a **decision, not an angle**, so the reported quantity is **whether the induced
+spread is small enough to keep the verdict trustworthy**, not the angular error itself. Q3 is
+answered by the **decidability criterion (3c)**; there is no separate verdict-flip simulation.
 
 ### 3b. Event-detection stability (E3)
 - Read from the **rate at which the manual check has to move the selected frame**.
@@ -110,7 +96,8 @@ flips**, not the angular error itself.
 - **Unreliable** where the induced spread **reaches** the band half-width (an input scattering as
   far as centre→edge can no longer separate sound from faulty).
 - Threshold **factor = 1**, the same minimal non-arbitrary choice as the bands.
-- Report the **decision instability** (3a) alongside as the interpretable form of this breakdown.
+- Report per criterion the σ (and θ) at which the induced spread **reaches** the band half-width —
+  the point at which the criterion turns unreliable is the Q3 reading.
 
 ---
 
@@ -120,32 +107,29 @@ Structure outputs as machine-readable tables + reproducible figures. Suggested a
 
 | Artifact | Feeds | Content |
 |----------|-------|---------|
-| `sigma_estimate.json` | E1 | measured landmark noise σ (px), per landmark / region, from blinded manual annotation |
 | `projection_curves.csv` | E2 | per criterion: θ (deg) → projected angle; trunk closed-form, others numeric |
-| `noise_propagation.csv` | E1+E2 | per criterion: (θ, σ) → induced angular spread SD (deg), Monte Carlo |
-| `decision_instability.csv` | 3a | per criterion: (θ, σ) → instability, false-flag rate, missed-deviation rate |
+| `noise_propagation.csv` | E1+E2 | per criterion: (θ, σ) → induced angular spread SD (deg), Monte Carlo, over the σ sweep |
 | `event_error.json` | E3 | trophy / impact frame-move rate from manual check |
 | `decidability.csv` | 3c | per criterion: (θ, σ) → induced SD vs. band half-width → decidable / unreliable flag |
-| `figures/` | all | projection curves, spread-vs-θ, instability-vs-θ, decidability map per criterion |
+| `figures/` | all | projection curves, spread-vs-θ, decidability map per criterion over the σ band |
 
 Design notes for reproducibility:
-- **Parameterise** θ-range, σ, Monte Carlo N, RNG seed; log them with every output.
+- **Parameterise** θ-range, σ sweep, Monte Carlo N, RNG seed; log them with every output.
 - Keep **per-criterion** everywhere (segment length differences matter — Section 2b).
-- Separate **synthetic** modules (E2, E1-propagation, 3a, 3c — no recordings) from the
-  **empirical** ones (E1 σ-measurement, E3 frame check — need the manual annotation).
+- Separate the **synthetic** modules (E2, E1-propagation, 3c — no recordings) from the one
+  **empirical** module (E3 frame check — needs the manual annotation).
 - Do **not** produce a serve-quality verdict or any E4 number — out of scope by design.
 
 ## Suggested module layout (extends the pipeline layout)
 
 ```
 assessment/
-  annotation.py     # E1/E3: load blinded manual annotation; measure landmark px error -> sigma; frame-move rate
+  annotation.py     # E3: load manual frame check -> trophy/impact frame-move rate
   projection.py     # E2: trunk closed-form + numeric two-segment projection over theta
   propagation.py    # E1+E2: Monte Carlo landmark-noise -> per-criterion angular spread
-  stability.py      # 3a: draw true angles from reference dist; two verdicts; instability split
   decidability.py   # 3c: induced SD vs band half-width -> decidable/unreliable
-  report.py         # writes the CSV/JSON artifacts + figures above
+  run_measured.py   # ties E3 to the synthetic core over the sigma sweep
 ```
 
-Shared config: `theta_range`, `sigma`, `mc_samples`, `seed`, plus the rule bands imported from
-`rules.py`.
+Shared config: `theta_range`, `sigma` / `sigma_sweep`, `mc_samples`, `seed`, plus the rule bands
+imported from `rules.py`.

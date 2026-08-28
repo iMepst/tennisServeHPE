@@ -49,8 +49,7 @@ def interpolate_gaps(gated: List[GatedFrame],
                      max_gap_frames: int) -> List[ProcessedFrame]:
     """Fill short interior gaps; flag interpolated and unreliable samples."""
     n = len(gated)
-    # Seed every sample from its gated counterpart: a valid sample is reliable
-    # and un-interpolated; an invalid one starts unreliable until filled below.
+    # Seed each sample from its gated counterpart; invalid ones start unreliable until filled below.
     out: List[ProcessedFrame] = []
     for g in gated:
         samples = [

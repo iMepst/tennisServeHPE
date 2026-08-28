@@ -83,7 +83,7 @@ def plot_raw_vs_gated(gated: List[GatedFrame], landmark_names: Sequence[str],
     ]
     axes[0][0].legend(handles=legend, loc="lower left", fontsize=7, ncol=2)
     axes[-1][0].set_xlabel("time (s)")
-    fig.suptitle("Stage 2a raw-vs-gated: visibility and masked spans")
+    fig.suptitle("raw-vs-gated: visibility and masked spans")
     fig.tight_layout()
     fig.savefig(path, dpi=120)
     plt.close(fig)
@@ -157,7 +157,7 @@ def plot_raw_vs_filtered(
     axes[0][0].legend(handles, labels, loc="best", fontsize=7,
                       ncol=len(labels))
     axes[-1][0].set_xlabel("time (s)")
-    fig.suptitle(title or f"Stage 2b raw-vs-filtered: {coord}")
+    fig.suptitle(title or f"raw-vs-filtered: {coord}")
     fig.tight_layout()
     fig.savefig(path, dpi=120)
     plt.close(fig)

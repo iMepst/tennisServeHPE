@@ -133,6 +133,56 @@ def key_frame_candidates(clips: List[Dict[str, Any]],
             out.append(png)
     return out
 
+def plot_angles_vs_bands(clips: List[Dict[str, Any]], path: str) -> str:
+    """Measured angle per clip against each criterion's band (one figure).
+
+    Same matplotlib-Agg pattern as plotting.py. Each criterion is a column;
+    its band is shaded (a lower-bound band shades upward from its threshold),
+    and every clip's measured angle is a point. Criteria a clip could not
+    read contribute no point.
+    """
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    from matplotlib.patches import Patch
+
+    order = list(_CRITERION_LABEL)
+    fig, ax = plt.subplots(figsize=(9, 5))
+    for x, criterion in enumerate(order):
+        rule = _RULE_BY_ID[criterion]
+        if rule.band_kind == "lower_bound":
+            ax.add_patch(plt.Rectangle((x - 0.3, rule.lo), 0.6,
+                                       (rule.mean + 4 * rule.sd) - rule.lo,
+                                       color="tab:green", alpha=0.15, lw=0))
+        else:
+            ax.add_patch(plt.Rectangle((x - 0.3, rule.lo), 0.6,
+                                       rule.hi - rule.lo,
+                                       color="tab:green", alpha=0.15, lw=0))
+        ax.hlines(rule.mean, x - 0.3, x + 0.3, color="tab:green", lw=1.0)
+        for clip in clips:
+            by_crit = {i["criterion"]: i for i in clip.get("indicators", [])}
+            ind = by_crit.get(criterion)
+            if ind is None or ind.get("angle") is None:
+                continue
+            color = "tab:blue" if ind["status"] == "inside" else "tab:red"
+            ax.plot(x, ind["angle"], "o", color=color, alpha=0.8)
+    ax.set_xticks(range(len(order)))
+    ax.set_xticklabels([_CRITERION_LABEL[c] for c in order])
+    ax.set_ylabel("angle (deg)")
+    ax.set_title("Measured angles against reference bands")
+    ax.legend(handles=[
+        Patch(color="tab:green", alpha=0.15,
+              label="reference band (mean ± SD)"),
+        plt.Line2D([], [], marker="o", ls="", color="tab:blue",
+                   label="inside"),
+        plt.Line2D([], [], marker="o", ls="", color="tab:red",
+                   label="outside"),
+    ], loc="best", fontsize=8)
+    fig.tight_layout()
+    fig.savefig(path, dpi=120)
+    plt.close(fig)
+    return path
+
 _INDICATOR_HEADER = [
     "clip", "camera_plane", "view_direction", "criterion", "status", "angle",
     "band_lo", "band_hi", "band_kind", "detail",

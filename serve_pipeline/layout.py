@@ -9,12 +9,12 @@ META_JSON = "meta.json"
 
 
 def clip_from_video(video_path: str) -> str:
-    """Clip id from an input video path (``serve_01.mp4`` -> ``serve_01``)."""
+    """Clip id from a video path (serve_01.mp4 -> serve_01)."""
     return os.path.splitext(os.path.basename(video_path))[0]
 
 
 def clip_from_stage_file(path: str) -> str:
-    """Clip id from any file inside ``<root>/<clip>/<stage>/file``."""
+    """Clip id from any file inside <root>/<clip>/<stage>/file."""
     stage_dir = os.path.dirname(os.path.abspath(path))
     clip_dir = os.path.dirname(stage_dir)
     return os.path.basename(clip_dir)

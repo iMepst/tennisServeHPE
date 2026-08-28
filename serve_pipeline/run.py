@@ -37,8 +37,8 @@ from .persistence import (
     write_metadata,
 )
 from .rules import Indicator, evaluate_all
-from .stage1_extract import DEFAULT_MODEL, run_stage1
-from .stage2_process import GATING_META_JSON, run_stage2a, run_stage2b
+from .extract import DEFAULT_MODEL, run_extraction
+from .process import GATING_META_JSON, run_filtering, run_gating
 from .visualization import save_key_frame_stills
 
 logger = logging.getLogger(__name__)
@@ -66,20 +66,20 @@ def ensure_filtered(video_path: str, outdir: str = "results",
     if reuse and os.path.isfile(landmarks_csv):
         logger.info("Stage 1: reusing %s", landmarks_csv)
     else:
-        run_stage1(video_path, outdir=outdir,
-                   model_path=model_path or DEFAULT_MODEL)
+        run_extraction(video_path, outdir=outdir,
+                       model_path=model_path or DEFAULT_MODEL)
 
     # Stage 2a: visibility gating.
     if reuse and os.path.isfile(gated_csv):
         logger.info("Stage 2a: reusing %s", gated_csv)
     else:
-        run_stage2a(landmarks_csv, meta_path=stage1_meta)
+        run_gating(landmarks_csv, meta_path=stage1_meta)
 
     # Stage 2b: interpolation + low-pass filtering.
     if reuse and os.path.isfile(filtered_csv):
         logger.info("Stage 2b: reusing %s", filtered_csv)
     else:
-        run_stage2b(gated_csv, meta_path=gating_meta)
+        run_filtering(gated_csv, meta_path=gating_meta)
 
     return filtered_csv, stage1_meta
 
@@ -240,7 +240,8 @@ def write_key_frame_stills(video_path: str, stage1_meta: str,
         logger.info("  key stills:  skipped (source video or raw landmarks "
                     "unavailable)")
         return None
-    frame_poses = read_landmarks_csv(landmarks_csv)
+    frame_poses = read_landmarks_csv(
+        landmarks_csv, frame_indices={idx for idx, _ in specs})
     clip_dir = os.path.dirname(
         os.path.dirname(os.path.abspath(filtered_csv)))
     out_path = os.path.join(clip_dir, "key_frames.png")

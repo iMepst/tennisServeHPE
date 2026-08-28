@@ -5,7 +5,7 @@ import numpy as np
 import pytest
 
 from serve_pipeline.pose_extraction import LandmarkObservation, PoseExtractor
-from serve_pipeline.stage1_extract import DEFAULT_MODEL
+from serve_pipeline.extract import DEFAULT_MODEL
 
 pytestmark = pytest.mark.skipif(
     not os.path.isfile(DEFAULT_MODEL),

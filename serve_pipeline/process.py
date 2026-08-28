@@ -44,11 +44,9 @@ GATING_META_JSON = "gating_meta.json"
 FILTERING_META_JSON = "filtering_meta.json"
 
 
-# --------------------------------------------------------------------------- #
 # Stage 2a: gating
-# --------------------------------------------------------------------------- #
-def _resolve_fps_stage1(meta_path: Optional[str],
-                        frames: List[FramePose]) -> float:
+def _resolve_fps_from_extraction_meta(meta_path: Optional[str],
+                                      frames: List[FramePose]) -> float:
     """fps from the Stage 1 meta JSON, falling back to frame timestamps."""
     if meta_path and os.path.isfile(meta_path):
         fps = read_metadata(meta_path).get("video", {}).get("fps")
@@ -64,7 +62,7 @@ def _resolve_fps_stage1(meta_path: Optional[str],
     )
 
 
-def run_stage2a(csv_path: str, outdir: Optional[str] = None,
+def run_gating(csv_path: str, outdir: Optional[str] = None,
                 meta_path: Optional[str] = None,
                 visibility_threshold: float = DEFAULT_VISIBILITY_THRESHOLD,
                 qc_landmarks: Optional[List[str]] = None) -> Dict[str, Any]:
@@ -77,7 +75,7 @@ def run_stage2a(csv_path: str, outdir: Optional[str] = None,
         meta_path = candidate if os.path.isfile(candidate) else None
 
     frames = read_landmarks_csv(csv_path)
-    fps = _resolve_fps_stage1(meta_path, frames)
+    fps = _resolve_fps_from_extraction_meta(meta_path, frames)
 
     gated = gate_frames(frames, visibility_threshold)
     gap_stats = compute_gap_statistics(gated, fps)
@@ -127,11 +125,9 @@ def run_stage2a(csv_path: str, outdir: Optional[str] = None,
     return meta
 
 
-# --------------------------------------------------------------------------- #
 # Stage 2b: interpolation + filtering
-# --------------------------------------------------------------------------- #
-def _resolve_fps_stage2a(meta_path: Optional[str],
-                         gated: List[GatedFrame]) -> float:
+def _resolve_fps_from_gating_meta(meta_path: Optional[str],
+                                  gated: List[GatedFrame]) -> float:
     """fps from the Stage 2a meta JSON, falling back to gated timestamps."""
     if meta_path and os.path.isfile(meta_path):
         fps = read_metadata(meta_path).get("parameters", {}).get("fps")
@@ -171,7 +167,7 @@ def _peak_motion_window(
     if best_lm is None:
         return None
 
-    # Peak velocity between *adjacent* reliable frames (reset across gaps, so a
+    # Peak velocity between adjacent reliable frames (reset across gaps, so a
     # jump either side of a hole is never mistaken for fast motion).
     best_t: Optional[float] = None
     best_speed = -1.0
@@ -193,7 +189,7 @@ def _peak_motion_window(
     return (best_t - pad_s, best_t + pad_s)
 
 
-def run_stage2b(gated_csv_path: str, outdir: Optional[str] = None,
+def run_filtering(gated_csv_path: str, outdir: Optional[str] = None,
                 meta_path: Optional[str] = None,
                 max_gap_ms: float = DEFAULT_MAX_GAP_MS,
                 filter_cfg: Optional[FilterConfig] = None,
@@ -211,7 +207,7 @@ def run_stage2b(gated_csv_path: str, outdir: Optional[str] = None,
         filter_cfg = FilterConfig()  # config-driven defaults
 
     gated = read_gated_csv(gated_csv_path)
-    fps = _resolve_fps_stage2a(meta_path, gated)
+    fps = _resolve_fps_from_gating_meta(meta_path, gated)
     # The gap bound is defined in time; convert it to this clip's frames so
     # the same physical gap length holds at any frame rate.
     max_gap_frames = round(max_gap_ms / 1000.0 * fps)
@@ -219,7 +215,7 @@ def run_stage2b(gated_csv_path: str, outdir: Optional[str] = None,
     pre_filter = interpolate_gaps(gated, max_gap_frames)
     interp_stats = summarize_interpolation(pre_filter)
 
-    # Chosen filter -> the persisted filtered series.
+    # Fresh interpolation pass to filter in place, leaving pre_filter untouched for QC.
     filtered = interpolate_gaps(gated, max_gap_frames)
     filter_stats = filter_series(filtered, fps, filter_cfg)
 
@@ -285,9 +281,7 @@ def run_stage2b(gated_csv_path: str, outdir: Optional[str] = None,
     return meta
 
 
-# --------------------------------------------------------------------------- #
 # CLI
-# --------------------------------------------------------------------------- #
 def _add_common_qc(sub: argparse.ArgumentParser) -> None:
     sub.add_argument("--outdir", default=None,
                      help="override output dir (default: the clip's "
@@ -333,7 +327,7 @@ def main() -> None:
 
     args = parser.parse_args()
     if args.step == "2a":
-        run_stage2a(
+        run_gating(
             csv_path=args.landmarks_csv,
             outdir=args.outdir,
             meta_path=args.meta,
@@ -342,7 +336,7 @@ def main() -> None:
         )
     else:
         cfg = FilterConfig(order=args.order, cutoff_hz=args.cutoff_hz)
-        run_stage2b(
+        run_filtering(
             gated_csv_path=args.gated_csv,
             outdir=args.outdir,
             meta_path=args.meta,

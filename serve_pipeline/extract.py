@@ -33,7 +33,7 @@ COORDINATE_NOTE = (
 )
 
 
-def run_stage1(video_path: str, outdir: str = "results",
+def run_extraction(video_path: str, outdir: str = "results",
                model_path: str = DEFAULT_MODEL,
                min_detection_confidence: float = 0.5,
                min_tracking_confidence: float = 0.5,
@@ -145,7 +145,7 @@ def main() -> None:
     parser.add_argument("--max-frames", type=int, default=None,
                         help="limit frames for quick tests")
     args = parser.parse_args()
-    run_stage1(
+    run_extraction(
         video_path=args.video,
         outdir=args.outdir,
         model_path=args.model,

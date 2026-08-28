@@ -123,8 +123,8 @@ Angle definitions (detailed in `rule_base_spec.md`):
 
 ```
 serve_pipeline/
-  stage1_extract.py  # Stage 1: Video decoding, MediaPipe pose extraction, artifact persistence
-  stage2_process.py  # Stage 2: Orchestration for gating (2a) and interpolation/filtering (2b)
+  extract.py         # Stage 1: Video decoding, MediaPipe pose extraction, artifact persistence
+  process.py         # Stage 2: Orchestration for gating (2a) and interpolation/filtering (2b)
   gating.py          # Stage 2a: Visibility thresholding and gap statistics
   interpolation.py   # Stage 2b: Linear gap filling under 120 ms
   filtering.py       # Stage 2b: Butterworth zero-phase filtering

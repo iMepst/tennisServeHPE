@@ -166,3 +166,30 @@ def _noisy_projected_angle(criterion: str, projected: List[Point2],
     (criterion, theta) and only the noise varies across draws.
     """
     return read_angle(criterion, add_noise(projected, sigma, rng))
+
+@dataclass
+class Spread:
+    """Monte Carlo result at one (criterion, theta, sigma): mean and SD of the
+    read angle, degrees. sd_deg is the induced spread the decidability criterion
+    weighs against the band.
+    """
+
+    mean_deg: float
+    sd_deg: float
+
+
+def angular_spread(criterion: str, a_true: float, theta: float, sigma: float,
+                   config: PipelineConfig) -> Spread:
+    """Induced angular spread from landmark noise at one (theta, sigma).
+
+    Projects the criterion's true points once, then perturbs them
+    config.mc_samples times (RNG seeded from config.seed) and reads the
+    angle back each time. Returns the mean and SD of those readings.
+    """
+    rng = np.random.default_rng(config.seed)
+    projected = project_points(landmark_points(criterion, a_true), theta)
+    draws = np.array([
+        _noisy_projected_angle(criterion, projected, sigma, rng)
+        for _ in range(config.mc_samples)])
+    return Spread(mean_deg=float(draws.mean()),
+                  sd_deg=float(draws.std(ddof=1)))

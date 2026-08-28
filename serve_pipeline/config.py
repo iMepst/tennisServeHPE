@@ -27,27 +27,20 @@ class PipelineConfig:
         _REPO_ROOT, "models", "pose_landmarker_heavy.task")
     results_root: str = os.path.join(_REPO_ROOT, "results")
 
-    # ------------------------------------------------------------------
-    # Stage 2 preprocessing (pipeline_spec.md, Stage 2)
-    # ------------------------------------------------------------------
-    # (a) A landmark sample is reliable iff visibility >= this threshold
-    # (pipeline_spec.md Stage 2a; same gate as the rule availability
-    # condition in rule_base_spec.md Section 0).
+    # Preprocessing
+    # (a) A sample is reliable iff visibility >= this threshold (also the
+    # rule availability condition).
     visibility_threshold: float = 0.5
 
-    # (b) Only interior gaps up to this length are linearly interpolated.
-    # The bound is defined in time and converted per clip to frames via
-    # round(0.120 * fps), so the same physical gap length holds at any
-    # admitted frame rate (pipeline_spec.md Stage 2b).
+    # (b) Interior gaps up to this length are linearly interpolated. Defined in
+    # time, converted per clip via round(0.120 * fps), so the same physical gap
+    # holds at any frame rate.
     max_gap_ms: float = 120.0
 
-    # (c) Butterworth low-pass, applied zero-phase with filtfilt.
-    # The order is the NOMINAL filter order: the forward+backward pass
-    # doubles it to an effective 4th order and shifts the half-power
-    # point slightly below 8 Hz, which the spec accepts as a fixed
-    # offset (pipeline_spec.md Stage 2c). The 8 Hz physical cut-off is
-    # fixed across recordings; only the normalized cut-off 8/(fps/2) is
-    # recomputed per clip.
+    # (c) Butterworth low-pass, applied zero-phase with filtfilt. order is
+    # nominal: the forward+backward pass doubles it to effective 4th order and
+    # shifts the half-power point just below 8 Hz. The 8 Hz cut-off is fixed;
+    # only the normalized cut-off 8/(fps/2) is recomputed per clip.
     butterworth_order: int = 2
     cutoff_hz: float = 8.0
 

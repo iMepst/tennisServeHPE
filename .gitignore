@@ -11,5 +11,7 @@ models/*.task
 # pipeline artifacts, reproducible from data + code
 results/
 
-# input videos (remove this line if using Git LFS for them)
+# input videos
 data/*.mp4
+data/*.csv
+data/annotations/*.csv

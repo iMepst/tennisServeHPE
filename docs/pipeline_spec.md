@@ -134,5 +134,4 @@ serve_pipeline/
   run.py             # Pipeline orchestrator processing a single clip end to end
 ```
 
-Runtime parameters: `serving_arm`, `front_leg`, `camera_plane`, `view_direction`, `fps`, `frame_width`, `frame_height`, `view_direction`,
-`fps`, `frame_width`, `frame_height`.
+Runtime parameters: `serving_arm`, `front_leg`, `camera_plane`, `view_direction`, `fps`, `frame_width`, `frame_height`.

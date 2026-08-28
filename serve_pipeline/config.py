@@ -51,25 +51,36 @@ class PipelineConfig:
     butterworth_order: int = 2
     cutoff_hz: float = 8.0
 
-    # ------------------------------------------------------------------
-    # Feasibility assessment (feasibility_assessment_spec.md, Sec. 2-4)
-    # Placeholder defaults; every assessment output logs the values it
-    # ran with, so results stay reproducible.
-    # ------------------------------------------------------------------
-    # Sweep range for theta, the angle between motion plane and image
-    # plane, in degrees (min, max). Feeds projection (E2) and the
-    # decidability criterion (Sec. 3c).
+    # Feasibility assessment. Placeholder defaults; every output logs the
+    # values it ran with, so results stay reproducible.
+    # Sweep range (min, max) for theta, the angle between motion and image
+    # planes, in degrees. Feeds projection (E2) and decidability.
     theta_range: Tuple[float, float] = (0.0, 45.0)
     theta_step: float = 5.0
 
-    # Landmark noise standard deviation in pixels (E1). Placeholder
-    # until replaced by the value measured against the blinded manual
-    # annotation (feasibility_assessment_spec.md Sec. 2b).
+    # Landmark noise sd in pixels (E1). Not measured here: taken from the
+    # estimator's reported accuracy (BlazePose PDJ) and treated as a range, not
+    # one point. sigma is nominal; sigma_sweep is the band propagation and
+    # decidability are reported over, so the verdict reads as a function of
+    # pose-estimate noise.
     sigma: float = 3.0
+    sigma_sweep: Tuple[float, ...] = (2.0, 3.0, 4.0, 5.0, 6.0)
 
-    # Monte Carlo sample count and RNG seed (Sec. 2b / 3a).
+    # Monte Carlo sample count and RNG seed.
     mc_samples: int = 10000
     seed: int = 42
+
+    # Frame tolerances for the event-error report (E3). The manual check only
+    # moves a detected key frame when the detector is off by more than the
+    # tolerance. Reported at several tolerances so the "usually spot-on,
+    # occasionally far off" structure stays visible: on slow-motion clips a
+    # tight one-frame tolerance alone overstates the move rate.
+    event_tolerances_frames: Tuple[int, ...] = (1, 3, 5)
+
+    # An absolute offset at or beyond this many frames counts as a large
+    # detection failure (the heavy tail from mistimed slow-motion clips).
+    # Counted separately so a few extreme misses do not distort the median/IQR.
+    event_large_offset_frames: int = 30
 
 
 @dataclass

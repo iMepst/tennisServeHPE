@@ -113,6 +113,26 @@ def write_csv(path: str, header: List[str],
         for row in rows:
             writer.writerow(row)
     return path
+
+def key_frame_candidates(clips: List[Dict[str, Any]],
+                         results_root: str) -> List[str]:
+    """key_frames.png paths for clips with both events located.
+
+    Both events means the still shows a trophy and an impact panel. Returned
+    for the author to pick one frontal and one sagittal from.
+    """
+    out: List[str] = []
+    for clip in clips:
+        events = clip.get("key_events", {})
+        if not (events.get("trophy_locatable") and
+                events.get("impact_locatable")):
+            continue
+        png = os.path.join(results_root, str(clip.get("clip")),
+                           "key_frames.png")
+        if os.path.isfile(png):
+            out.append(png)
+    return out
+
 _INDICATOR_HEADER = [
     "clip", "camera_plane", "view_direction", "criterion", "status", "angle",
     "band_lo", "band_hi", "band_kind", "detail",

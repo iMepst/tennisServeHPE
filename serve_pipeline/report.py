@@ -1,6 +1,6 @@
 """Aggregate per-clip results into Results-chapter tables and figures.
 
-Post-hoc reporter (not a pipeline stage). Walks results/<clip>/result.json,
+Post-hoc reporter. Walks results/<clip>/result.json,
 joins each criterion against its reference band (rules.py), and writes the
 chapter-ready artifacts into results/_report/:
 
@@ -8,10 +8,6 @@ chapter-ready artifacts into results/_report/:
 - angles_vs_bands.png  (optional) measured angle per clip against each band
 
 The chapter tables are hand-written from indicators.csv.
-
-The raw per-clip result.json is the single source of truth; the diagnostic
-artifacts (overlay.mp4, contact sheets, QC plots) are deliberately not read
-here; they stay QC-only and never enter the thesis.
 """
 
 import argparse

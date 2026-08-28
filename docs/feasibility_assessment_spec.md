@@ -1,135 +1,91 @@
-# Feasibility Assessment — Implementation Spec
+# Feasibility Assessment - Implementation Spec
 
-Extracted from methodology.tex, Section 3.6 (`sec:meth_evaluation`). Pairs with
-`rule_base_spec.md` and `pipeline_spec.md`.
+## Framing
 
-**Goal of this spec:** structure the code so the numbers the Results chapter reports and the
-Discussion interprets fall out directly. Every quantity below is a **planned output**; the
-methodology states the plan, the Results chapter states the values.
-
-## Framing (drives what the code must and must NOT do)
-
-- The assessment is **internal**: it verifies the **measurement chain**, i.e. whether the
-  pipeline recovers the criteria as designed. It does **not** judge whether a flagged serve is a
-  genuine coaching fault (that needs an external rater the work does not use).
-- **No external 3D reference is required.** The geometric part **prescribes the true angle by
-  construction** and computes its projection. The event detection is checked against a **manual
-  frame check**, not an external ground truth.
-- Maps onto the three investigatory questions:
-  - **Q1 (which criteria extractable at all)** — already settled by criteria selection + pipeline;
-    only the **outcome** is carried here (no new computation).
-  - **Q2 (how stable under landmark noise, viewpoint, key-event detection)** — Sections 2 + 3 below.
-  - **Q3 (under which conditions indicators stay reliable enough)** — the **decidability
-    criterion** in Section 3 below.
+- The assessment evaluates the internal validity of the **measurement chain**, examining whether the pipeline recovers the target criteria under monocular estimation. Serving quality itself is not evaluated.
+- Geometric ground truth is prescribed analytically rather than captured through an external 3D optical system. Key-event detection is evaluated against manual video annotations.
+- Alignment with investigatory questions:
+  - **Q1 (extractable criteria)**: Defined by criteria selection and pipeline stages; outcomes are summarized directly.
+  - **Q2 (kinematic stability)**: Evaluated across landmark noise, camera viewpoint, and key-event detection in Sections 2 and 3.
+  - **Q3 (reliability boundary)**: Evaluated via the decidability criterion in Section 3.
 
 ---
 
-## 1. Error budget — the organising decomposition
+## 1. Error budget
 
-Reported angle − true angle is decomposed into **four sources**. This ordering structures the
-whole assessment (build one analysis module per source).
+Total measurement error (reported angle minus true angle) is structured into four components:
 
-| # | Error source | Definition | How it is handled | Quantifiable? | Output artifact |
-|---|--------------|------------|-------------------|---------------|-----------------|
-| E1 | **Pose estimation error** | estimated landmark − true image position | σ **taken from the estimator's reported accuracy** (BlazePose PDJ) and **swept as a sensitivity range**, not measured on the clips | yes | induced spread over a σ band |
-| E2 | **Projection error** | true spatial angle − monocular projected angle | computed **analytically** from the projection relation, no recording | yes | projected-angle curves over θ |
-| E3 | **Event error** | selected frame − true instant (incl. pelvis-proxy offset) | read from the **manual frame check** | yes | reported as a **rate** |
-| E4 | **Definitional mismatch** | surface landmarks vs. joint centres behind the reference values | **not quantifiable** (needs joint-centre ground truth) → limitations | no | qualitative note (worst on trunk inclination) |
+| # | Error source | Definition | Methodological treatment | Quantifiable | Primary output artifact |
+|---|--------------|------------|--------------------------|--------------|-------------------------|
+| E1 | **Pose estimation error** | Estimated landmark minus true image position | Noise parameter sigma informed by model card accuracy (BlazePose PDJ) and evaluated across a sensitivity sweep | Yes | Induced angular spread over sigma band |
+| E2 | **Projection error** | True spatial angle minus monocular projected angle | Computed analytically from the projection equations without video dependencies | Yes | Projected-angle curves over theta |
+| E3 | **Event error** | Detected frame minus true event instant | Measured against manual key-frame video annotations | Yes | Offset distribution and move rates |
+| E4 | **Definitional mismatch** | Surface landmarks vs. internal joint centers | Documented qualitatively under limitations (most pronounced for trunk inclination) | No | Qualitative discussion |
 
-Code implication: E1–E3 produce numbers; **E4 is not simulated** — leave it as a documented,
-unquantified offset. Do not fabricate a value for it.
+E1-E3 are quantified numerically. E4 is treated as a documented, unquantified offset and is not simulated.
 
 ---
 
 ## 2. Projection and noise propagation (E2 + E1)
 
-Isolates the projection error and then layers landmark noise on top. **No recording used** —
-fully synthetic / Monte Carlo.
+Projection distortion and landmark noise propagation are evaluated synthetically via Monte Carlo simulation without video dependencies.
 
-### 2a. Projection (E2, analytic/numeric)
-- Camera **level**, projection **orthographic** (valid when player is distant relative to body scale).
-- For a **single inclination** (trunk): projected angle from the closed form
-  `tan(a_proj) = tan(a_true) · cos(θ)`.
-- For **two-segment joints** (knee, elbow, shoulder): **no closed form** — both segments can tilt
-  out of plane independently. Evaluate **numerically**: orient each segment direction, project it,
-  recompute the enclosed angle.
-- **θ (motion-plane vs. image-plane angle) is NOT a single value** — it comes partly from camera
-  placement, partly from the player's lean direction (unknown before the serve, cannot be zeroed).
-  → **Sweep θ over a range**; this same range feeds the decidability criterion (Section 3).
+### 2a. Projection (E2, analytic and numeric)
+- Camera orientation is assumed level with orthographic projection (applicable for a distant subject relative to body height).
+- **Single inclination (trunk)**: Evaluated via the closed-form equation `tan(a_proj) = tan(a_true) * cos(theta)`.
+- **Two-segment joints (knee, elbow, shoulder)**: Evaluated numerically by rotating segment vectors out of plane by theta and recomputing the enclosed projected angle.
+- The viewpoint angle theta (between motion plane and image plane) is swept across the range `[0, 45]` deg in increments of 5 deg to evaluate sensitivity to camera positioning and torso rotation.
 
-### 2b. Landmark noise on top (E1, Monte Carlo)
-- Perturb **each landmark** by an **isotropic Gaussian**, standard deviation **σ in pixels**.
-- Read the perturbed landmarks into the angle; estimate the **spread of the resulting angle** by
-  **Monte Carlo**.
-- **Treat each criterion separately**: a fixed pixel error subtends a larger angle across a
-  **shorter** segment, so the short arm segments (elbow, shoulder) react more strongly than the
-  longer trunk/leg segments.
-- **σ is parameterised**, fixed from the estimator's reported accuracy (BlazePose PDJ), and
-  **swept over a band** (`config.sigma_sweep`) rather than measured on the clips. The induced
-  spread and the decidability verdict are therefore reported as a **function of the noise level**,
-  a sensitivity analysis rather than a single operating point.
-- **Known simplification (→ limitations):** noise is modelled as isotropic and independent between
-  frames, whereas real error is temporally correlated and larger in the fast serve phases. Figures
-  are indicative, not exact.
-
-**Outputs for Results:** per-criterion angular spread (SD, deg) as a function of θ over the σ band;
-the projected-vs-true angle curves.
+### 2b. Landmark noise propagation (E1, Monte Carlo)
+- Each 2D landmark is perturbed by isotropic zero-mean Gaussian noise with standard deviation sigma in pixels.
+- The resulting angular spread is estimated via Monte Carlo sampling (N = 10,000 draws).
+- Each criterion is evaluated independently using representative segment lengths based on Winter body proportions. Shorter arm segments (elbow, shoulder) exhibit higher angular sensitivity to pixel perturbations than longer leg and trunk segments.
+- Sigma is evaluated across a parameter sweep (`config.sigma_sweep = (2.0, 3.0, 4.0, 5.0, 6.0)` px) to provide a sensitivity profile across noise levels.
 
 ---
 
-## 3. Decision stability & the decidability criterion (Q2 + Q3)
+## 3. Decision stability and decidability criterion (Q2 + Q3)
 
-The system emits a **decision, not an angle**, so the reported quantity is **whether the induced
-spread is small enough to keep the verdict trustworthy**, not the angular error itself. Q3 is
-answered by the **decidability criterion (3c)**; there is no separate verdict-flip simulation.
+Because the pipeline outputs qualitative indicators rather than continuous angles, the assessment measures whether the induced angular spread remains sufficiently small to maintain reliable classification.
 
 ### 3b. Event-detection stability (E3)
-- Read from the **rate at which the manual check has to move the selected frame**.
-- Reported as a **finding**, not assumed. Carries the event error (E3) into the verdict.
+- Evaluated from the empirical offset between automatically detected and manually annotated key frames (trophy position and ball impact).
+- Reported as move rates across multiple frame tolerances and robust offset distributions (median, IQR, max offset, large-failure counts).
 
-### 3c. Decidability criterion (the Q3 threshold — fix in code as a constant)
-- Stated on the **angular spread** that projection + landmark noise induce in a rule's input,
-  measured as a **standard deviation** and held against the rule's **own band**.
-- Band half-width = **one reference SD** → the comparison needs **no external scale**.
-- **Decidable** where the induced spread stays **below the band half-width** across the expected
-  range of camera viewpoint (θ) and landmark noise (σ).
-- **Unreliable** where the induced spread **reaches** the band half-width (an input scattering as
-  far as centre→edge can no longer separate sound from faulty).
-- Threshold **factor = 1**, the same minimal non-arbitrary choice as the bands.
-- Report per criterion the σ (and θ) at which the induced spread **reaches** the band half-width —
-  the point at which the criterion turns unreliable is the Q3 reading.
+### 3c. Decidability criterion (Q3 threshold)
+- The induced angular standard deviation (from projection and landmark noise) is held directly against the reference band half-width (`1.0 * rule.sd`).
+- **Decidable**: The induced standard deviation remains strictly below the band half-width across the viewpoint (theta) and noise (sigma) sweep.
+- **Unreliable**: The induced standard deviation equals or exceeds the band half-width (where measurement scatter reaches the distance from band center to edge).
+- The transition point (onset sigma and breakdown theta) defines the Q3 reliability boundary.
 
 ---
 
-## 4. What the code should emit (so Results/Discussion are easy)
+## 4. Assessment artifacts
 
-Structure outputs as machine-readable tables + reproducible figures. Suggested artifacts:
+Outputs are structured as machine-readable tables and reproducible figures:
 
-| Artifact | Feeds | Content |
-|----------|-------|---------|
-| `projection_curves.csv` | E2 | per criterion: θ (deg) → projected angle; trunk closed-form, others numeric |
-| `noise_propagation.csv` | E1+E2 | per criterion: (θ, σ) → induced angular spread SD (deg), Monte Carlo, over the σ sweep |
-| `event_error.json` | E3 | trophy / impact frame-move rate from manual check |
-| `decidability.csv` | 3c | per criterion: (θ, σ) → induced SD vs. band half-width → decidable / unreliable flag |
-| `figures/` | all | projection curves, spread-vs-θ, decidability map per criterion over the σ band |
+| Artifact | Error source | Content |
+|----------|--------------|---------|
+| `projection_curves.csv` | E2 | Projected angle as a function of theta per criterion |
+| `noise_propagation.csv` | E1+E2 | Induced angular standard deviation over theta and sigma sweeps |
+| `event_error.json` | E3 | Frame-move rates and offset distribution statistics from manual annotations |
+| `decidability.csv` | 3c | Induced SD vs. band half-width ratio, decidable status, and onset points |
+| `run_meta.json` | Metadata | Complete configuration parameters and provenance for reproduction |
+| `figures/` | All | Rendered projection curves, spread vs. theta plots, and decidability maps |
 
-Design notes for reproducibility:
-- **Parameterise** θ-range, σ sweep, Monte Carlo N, RNG seed; log them with every output.
-- Keep **per-criterion** everywhere (segment length differences matter — Section 2b).
-- Separate the **synthetic** modules (E2, E1-propagation, 3c — no recordings) from the one
-  **empirical** module (E3 frame check — needs the manual annotation).
-- Do **not** produce a serve-quality verdict or any E4 number — out of scope by design.
+---
 
-## Suggested module layout (extends the pipeline layout)
+## Module layout
 
 ```
 assessment/
-  annotation.py     # E3: load manual frame check -> trophy/impact frame-move rate
-  projection.py     # E2: trunk closed-form + numeric two-segment projection over theta
-  propagation.py    # E1+E2: Monte Carlo landmark-noise -> per-criterion angular spread
-  decidability.py   # 3c: induced SD vs band half-width -> decidable/unreliable
-  run_measured.py   # ties E3 to the synthetic core over the sigma sweep
+  annotation.py    # E3: Manual annotation ingestion and event-error statistics
+  projection.py    # E2: Analytic and numerical projection modeling over theta
+  propagation.py   # E1+E2: Monte Carlo landmark noise propagation over (theta, sigma)
+  decidability.py  # 3c: Decidability ratio evaluation and breakdown localization
+  run_measured.py  # Orchestrator linking empirical E3 with the synthetic core
+  report.py        # Artifact and figure generation under results/assessment/
 ```
 
-Shared config: `theta_range`, `sigma` / `sigma_sweep`, `mc_samples`, `seed`, plus the rule bands
-imported from `rules.py`.
+Shared configuration parameters (`theta_range`, `sigma_sweep`, `mc_samples`, `seed`) are loaded centrally from `PipelineConfig`.
+

@@ -13,8 +13,8 @@ PASS_FIELDS = ["visibility"]
 @dataclass
 class ProcessedSample:
     landmark_id: int
-    valid: bool          # original Stage 2a gating decision
-    mask_reason: str     # original Stage 2a reason
+    valid: bool          # original gating decision
+    mask_reason: str     # original reason
     interpolated: bool   # coordinates were filled by interpolation
     reliable: bool       # usable downstream (valid or short-gap interpolated)
     filtered: bool       # low-pass filter was applied (set in filtering.py)

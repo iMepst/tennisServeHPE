@@ -1,12 +1,8 @@
-"""Stage 4: angle computation at the key frames.
+"""Angle computation at the key frames: the four candidate angles read
+from the filtered trajectories. Runs in memory; persists nothing.
 
-Reads the four candidate angles from the filtered trajectories at the
-Stage 3 key frames (pipeline_spec.md, Stage 4; rule_base_spec.md,
-Sections 0 and 2). Runs in memory; nothing is persisted here.
-
-Two conventions precede every angle: normalized coordinates are rescaled
-to pixels (otherwise the frame aspect ratio distorts each angle), and
-all angles come from one planar-vector formula.
+Two conventions: normalized coordinates are rescaled to pixels (else the
+aspect ratio distorts the angle), and all angles use one planar-vector formula.
 """
 
 import math
@@ -21,21 +17,15 @@ from .landmarks import NAME_TO_ID
 
 def pixel_point(x: float, y: float,
                 clip_params: ClipParams) -> Tuple[float, float]:
-    """Rescale a normalized landmark position to pixel coordinates.
-
-    Only the two image-plane coordinates enter the angles; depth stays
-    discarded (2D operating point).
-    """
+    """Rescale a normalized landmark position to pixels; depth is discarded."""
     return x * clip_params.frame_width, y * clip_params.frame_height
 
 
 def vector_angle(u: Tuple[float, float], v: Tuple[float, float]) -> float:
     """Angle between two planar vectors in degrees, 0..180.
 
-    theta = atan2(|u_x*v_y - u_y*v_x|, u_x*v_x + u_y*v_y): the 2D
-    cross-product magnitude against the dot product. Numerically stable
-    where an acos of the normalized dot product is not (near 0 and
-    180 deg).
+    atan2(|cross|, dot): stable near 0 and 180 deg where acos of the
+    normalized dot product is not.
     """
     cross = u[0] * v[1] - u[1] * v[0]
     dot = u[0] * v[0] + u[1] * v[1]
@@ -46,9 +36,8 @@ def landmark_pixel(frame: ProcessedFrame, landmark_name: str,
                    clip_params: ClipParams) -> Tuple[float, float]:
     """One landmark's pixel position at this frame.
 
-    Raises ValueError when the sample carries no coordinates (an
-    unfilled gap or undetected frame); the reliability gate itself is
-    applied by the caller before any angle is formed.
+    Raises ValueError when the sample has no coordinates; the reliability
+    gate is applied by the caller.
     """
     sample = frame.samples[NAME_TO_ID[landmark_name]]
     if sample.x is None or sample.y is None:
@@ -60,12 +49,10 @@ def landmark_pixel(frame: ProcessedFrame, landmark_name: str,
 
 def landmarks_reliable(frame: ProcessedFrame,
                        landmark_names: Iterable[str]) -> bool:
-    """True when every named landmark is usable at this frame.
+    """True when every named landmark is reliable with coordinates present.
 
-    Usable = the Stage 2 reliability (valid, or filled within a short
-    gap) with coordinates present. The availability gate: an angle is
-    read only when all its landmarks pass here, else it is unavailable
-    rather than computed from a wrong value.
+    Availability gate: an angle is read only when all its landmarks pass,
+    else it is unavailable rather than computed from a wrong value.
     """
     for name in landmark_names:
         sample = frame.samples[NAME_TO_ID[name]]
@@ -78,8 +65,7 @@ def turning_angle(frame: ProcessedFrame, first: str, middle: str,
                   last: str, clip_params: ClipParams) -> float:
     """Turning angle of the chain first -> middle -> last, 0..180 deg.
 
-    u = first->middle, v = middle->last: a straight chain reads ~0, a
-    right-angle bend 90. Knee and elbow flexion share this construction.
+    Straight chain ~0, right-angle bend 90. Knee and elbow flexion share this.
     """
     ax, ay = landmark_pixel(frame, first, clip_params)
     bx, by = landmark_pixel(frame, middle, clip_params)
@@ -94,10 +80,9 @@ def _check_side(name: str, side: str) -> None:
 
 def front_knee_flexion(frame: ProcessedFrame,
                        clip_params: ClipParams) -> float:
-    """Front knee flexion at the trophy frame (rule_base_spec.md, R2).
+    """Front knee flexion at the trophy frame (R2).
 
-    Turning angle hip->knee vs knee->ankle on the front-leg side:
-    straight leg ~0, bent leg = positive flexion.
+    Turning angle hip->knee vs knee->ankle, front leg: straight ~0.
     """
     side = clip_params.front_leg
     _check_side("front_leg", side)
@@ -107,10 +92,9 @@ def front_knee_flexion(frame: ProcessedFrame,
 
 def elbow_flexion(frame: ProcessedFrame,
                   clip_params: ClipParams) -> float:
-    """Elbow flexion at the ball-impact frame (rule_base_spec.md, R3).
+    """Elbow flexion at the impact frame (R3).
 
-    Turning angle shoulder->elbow vs elbow->wrist on the serving-arm
-    side: straight arm ~0.
+    Turning angle shoulder->elbow vs elbow->wrist, serving arm: straight ~0.
     """
     side = clip_params.serving_arm
     _check_side("serving_arm", side)
@@ -120,11 +104,10 @@ def elbow_flexion(frame: ProcessedFrame,
 
 def shoulder_elevation(frame: ProcessedFrame,
                        clip_params: ClipParams) -> float:
-    """Shoulder elevation at the ball-impact frame (rule_base_spec.md, R4).
+    """Shoulder elevation at the impact frame (R4).
 
-    Spanned at the serving shoulder: upper-arm vector shoulder->elbow
-    against the trunk vector shoulder->hip on the same side. Arm along
-    the trunk ~0, raised arm = larger angle.
+    Upper-arm shoulder->elbow against trunk shoulder->hip, same side:
+    arm along the trunk ~0, raised = larger.
     """
     side = clip_params.serving_arm
     _check_side("serving_arm", side)
@@ -136,11 +119,7 @@ def shoulder_elevation(frame: ProcessedFrame,
 
 def body_midpoint(frame: ProcessedFrame, left_name: str, right_name: str,
                   clip_params: ClipParams) -> Tuple[float, float]:
-    """Pixel midpoint of a left/right landmark pair.
-
-    Builds the mid-hip and mid-shoulder points of the trunk axis
-    (rule_base_spec.md, R1).
-    """
+    """Pixel midpoint of a left/right landmark pair (trunk-axis ends, R1)."""
     lx, ly = landmark_pixel(frame, left_name, clip_params)
     rx, ry = landmark_pixel(frame, right_name, clip_params)
     return (lx + rx) / 2.0, (ly + ry) / 2.0
@@ -148,13 +127,11 @@ def body_midpoint(frame: ProcessedFrame, left_name: str, right_name: str,
 
 def trunk_inclination(frame: ProcessedFrame,
                       clip_params: ClipParams) -> float:
-    """Trunk inclination at the trophy frame (rule_base_spec.md, R1).
+    """Trunk inclination at the trophy frame (R1).
 
-    Trunk axis mid-hip -> mid-shoulder against the image vertical
-    upward (0, -1): upward because image y grows downward, so an
-    upright axis points toward decreasing y — this recovers the
-    reference angle, not its 180-deg complement. Upright trunk ~0, a
-    lean reads as the inclination itself.
+    Trunk axis mid-hip -> mid-shoulder against image-up (0, -1); up because
+    image y grows downward, recovering the reference angle not its complement.
+    Upright ~0.
     """
     hx, hy = body_midpoint(frame, "left_hip", "right_hip", clip_params)
     sx, sy = body_midpoint(frame, "left_shoulder", "right_shoulder",
@@ -164,12 +141,11 @@ def trunk_inclination(frame: ProcessedFrame,
 
 @dataclass
 class AngleReadings:
-    """Stage 4 result: the four candidate angles, each None when
-    unavailable, with the key frame each was read at.
+    """The four candidate angles (None when unavailable) with the key frame
+    each was read at.
 
-    Trunk inclination and front knee flexion are read at the trophy
-    frame, elbow flexion and shoulder elevation at the ball-impact
-    frame. A frame is None when its event is not locatable.
+    Trunk and knee at the trophy frame; elbow and shoulder at impact. A frame
+    is None when its event is not locatable.
     """
     trophy_frame: Optional[int]
     impact_frame: Optional[int]
@@ -181,8 +157,7 @@ class AngleReadings:
 
 def _frame_at(frames: List[ProcessedFrame],
               frame_index: int) -> ProcessedFrame:
-    """The ProcessedFrame carrying frame_index (frames are dense but keyed
-    by their own index, so this is looked up, not positionally assumed)."""
+    """The frame carrying frame_index (looked up by index, not positional)."""
     for frame in frames:
         if frame.frame_index == frame_index:
             return frame
@@ -191,8 +166,7 @@ def _frame_at(frames: List[ProcessedFrame],
 
 def _gated(frame: ProcessedFrame, names: List[str],
            reader: Callable[[ProcessedFrame], float]) -> Optional[float]:
-    """Read an angle only when its landmarks pass the availability gate,
-    else None (never a value computed from an unreliable landmark)."""
+    """Read the angle only when its landmarks pass the availability gate, else None."""
     if not landmarks_reliable(frame, names):
         return None
     return reader(frame)
@@ -202,13 +176,12 @@ def compute_angles(frames: List[ProcessedFrame], key_events: KeyEvents,
                    clip_params: ClipParams) -> AngleReadings:
     """Read the four candidate angles at the located key frames.
 
-    Each angle is gated on its own landmarks; an unavailable one stays
-    None. An event that is not locatable leaves both of its angles None.
+    Each angle is gated on its own landmarks; an unavailable one stays None,
+    and a non-locatable event leaves both of its angles None.
 
     Shared-input dependence, by design: trunk inclination and front knee
-    flexion are both read at the trophy frame and both derive from the
-    hip landmarks, so a hip-landmark error shifts the trophy frame and
-    these two angles together — documented, not corrected.
+    flexion both read at the trophy frame and both from the hips, so a hip
+    error shifts the trophy frame and both angles together. Not corrected.
     """
     arm = clip_params.serving_arm
     leg = clip_params.front_leg

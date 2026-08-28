@@ -69,3 +69,18 @@ def test_build_report_aggregates(tmp_path) -> None:
 
     # Only indicators.csv is emitted; no LaTeX fragments, no availability CSV.
     assert set(report["outputs"]) == {"indicators_csv"}
+
+def test_key_frame_candidates_need_both_events(tmp_path) -> None:
+    root = str(tmp_path)
+    _write_clip(root, "serve_a", "frontal", True, True,
+                _indicators("inside", "unavailable", "inside", "inside"), 0.9)
+    _write_clip(root, "serve_b", "sagittal", True, False,
+                _indicators("unavailable", "inside", "unavailable",
+                            "unavailable"), 0.9)
+    # Only serve_a has both events; give it a key_frames.png to be picked.
+    open(os.path.join(root, "serve_a", "key_frames.png"), "w").close()
+
+    report = build_report(root, os.path.join(root, "_report"),
+                          make_figure=False)
+    assert report["key_frame_candidates"] == [
+        os.path.join(root, "serve_a", "key_frames.png")]

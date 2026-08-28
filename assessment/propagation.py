@@ -71,3 +71,51 @@ def trunk_points(a_true: float, length: float) -> List[Point3]:
     mid_hip = (0.0, 0.0, 0.0)
     mid_shoulder = (length * math.sin(a), length * math.cos(a), 0.0)
     return [mid_hip, mid_shoulder]
+
+# Representative stature in pixels: a synthetic stand-in, absolute value
+# arbitrary and logged with every output. Only the ratios between the segment
+# lengths below drive the per-criterion ordering, so the stature cancels out.
+REP_STATURE_PX = 600.0
+
+# Segment lengths as fractions of stature (Winter body-segment proportions). The
+# arm segments are shortest, which is why elbow and shoulder come out most
+# noise-sensitive.
+_UPPER_ARM = 0.186
+_FOREARM = 0.146
+_THIGH = 0.245
+_SHANK = 0.246
+_TRUNK = 0.288
+
+# Per criterion, the pixel length of each segment whose endpoints carry a
+# landmark: two for the joints, one for the trunk (its second reference is the
+# fixed image vertical). Elbow and shoulder read short arm segments, so scatter most.
+SEGMENT_LENGTHS_PX = {
+    "trunk_inclination": (_TRUNK * REP_STATURE_PX,),
+    "front_knee_flexion": (_THIGH * REP_STATURE_PX, _SHANK * REP_STATURE_PX),
+    "elbow_flexion": (_UPPER_ARM * REP_STATURE_PX, _FOREARM * REP_STATURE_PX),
+    "shoulder_elevation": (_UPPER_ARM * REP_STATURE_PX, _TRUNK * REP_STATURE_PX),
+}
+
+# How each criterion's angle is formed, fixing how points are built and read:
+# "trunk" is one segment vs the vertical, "chain" a turning angle (knee, elbow),
+# "vertex" the interior V angle at the shoulder.
+CRITERION_KIND = {
+    "trunk_inclination": "trunk",
+    "front_knee_flexion": "chain",
+    "elbow_flexion": "chain",
+    "shoulder_elevation": "vertex",
+}
+
+
+def landmark_points(criterion: str, a_true: float) -> List[Point3]:
+    """The true 3D landmark points for a criterion at true angle a_true.
+
+    Dispatches on CRITERION_KIND to the matching builder with the
+    criterion's representative segment lengths.
+    """
+    kind = CRITERION_KIND[criterion]
+    lengths = SEGMENT_LENGTHS_PX[criterion]
+    if kind == "trunk":
+        return trunk_points(a_true, lengths[0])
+    return two_segment_points(a_true, lengths[0], lengths[1],
+                              chain=(kind == "chain"))

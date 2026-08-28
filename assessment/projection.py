@@ -1,13 +1,12 @@
 """Projection error E2: how a monocular view distorts the true angle.
 
-Camera level, projection orthographic (a good approximation when the
-player is distant relative to body scale). No recordings are used: the
-true angle is prescribed by construction and its projection computed.
+Camera level, projection orthographic (good when the player is distant relative
+to body scale). No recordings: the true angle is prescribed by construction and
+its projection computed.
 
-theta is the angle between the motion plane (where the joint actually
-moves) and the image plane. It is not a single known value -- it comes
-partly from camera placement and partly from the player's lean, unknown
-before the serve -- so every quantity is evaluated over a sweep of theta.
+theta is the angle between the motion plane (where the joint moves) and the
+image plane. It is not a single known value (partly camera placement, partly the
+player's lean, unknown before the serve), so every quantity is swept over theta.
 """
 
 import math
@@ -23,9 +22,8 @@ def _tilt_about_vertical(v: Tuple[float, float, float],
                          theta: float) -> Tuple[float, float, float]:
     """Rotate a 3D direction by theta (deg) about the vertical y axis.
 
-    The vertical is the line where the motion plane meets the image plane,
-    so rotating about it by theta swings a point out of the image plane by
-    exactly the motion-plane-to-image-plane angle.
+    The vertical is where the motion plane meets the image plane, so rotating
+    about it by theta swings a point out of the image plane by exactly that angle.
     """
     t = math.radians(theta)
     x, y, z = v
@@ -37,17 +35,14 @@ def _tilt_about_vertical(v: Tuple[float, float, float],
 def numeric_projected_angle(a_true: float, theta: float) -> float:
     """Projected enclosed angle of a two-segment joint in degrees.
 
-    Knee, elbow and shoulder are two segments meeting at a joint; unlike
-    the trunk there is no closed form, so the projection is evaluated
-    numerically. The two segments are placed symmetrically about the
-    vertical (the plane-intersection axis), each at half the enclosed
-    angle, then the whole joint plane is tilted by theta and each segment
-    projected orthographically. The enclosed angle is re-read with the
-    same atan2 convention as the pipeline (vector_angle).
+    Knee, elbow and shoulder are two segments meeting at a joint; unlike the
+    trunk there is no closed form. The segments are placed symmetrically about
+    the vertical at half the enclosed angle, the joint plane is tilted by theta,
+    each segment projected orthographically, and the angle re-read with
+    vector_angle.
 
-    Simplification: both segments share one out-of-plane tilt (a coplanar
-    joint). In reality each can tilt independently; capturing that needs a
-    two-parameter sweep and is left as a documented limitation.
+    Simplification: both segments share one out-of-plane tilt (a coplanar joint).
+    Independent tilts would need a two-parameter sweep; left as a documented limit.
     """
     h = math.radians(a_true / 2.0)
     # Vertex at the origin, arms symmetric about the +y bisector, initially
@@ -62,10 +57,9 @@ def numeric_projected_angle(a_true: float, theta: float) -> float:
 def trunk_projected_angle(a_true: float, theta: float) -> float:
     """Projected trunk inclination in degrees (closed form).
 
-    Trunk inclination is a single line (the trunk axis) read against the
-    fixed image vertical, so the projection has a closed form: tilting the
-    lean plane by theta foreshortens only the horizontal component, giving
-    tan(a_proj) = tan(a_true) * cos(theta). Inputs and output in degrees.
+    A single line (trunk axis) against the image vertical, so tilting the lean
+    plane by theta foreshortens only the horizontal component: tan(a_proj) =
+    tan(a_true) * cos(theta). Degrees in and out.
     """
     a = math.radians(a_true)
     t = math.radians(theta)
@@ -75,10 +69,9 @@ def trunk_projected_angle(a_true: float, theta: float) -> float:
 def project_orthographic(v: Tuple[float, float, float]) -> Tuple[float, float]:
     """Orthographic image of a 3D direction: keep x and y, drop depth z.
 
-    A level camera and parallel projection. This ignores perspective, so
-    the projection error it reports is a LOWER BOUND: a real lens adds
-    foreshortening on top, more so the closer or more off-centre the
-    player. The far-player assumption makes the gap small but non-zero.
+    Level camera, parallel projection. Ignoring perspective makes the reported
+    error a lower bound: a real lens adds foreshortening, more so the closer or
+    more off-centre the player. The far-player assumption keeps the gap small.
     """
     return v[0], v[1]
 
@@ -86,9 +79,7 @@ def project_orthographic(v: Tuple[float, float, float]) -> Tuple[float, float]:
 def theta_values(config: PipelineConfig) -> List[float]:
     """The theta sweep in degrees, inclusive of both range ends.
 
-    Enumerated from config.theta_range in steps of config.theta_step, so
-    the same range feeds the projection curves and the later decidability
-    criterion.
+    Enumerated from config.theta_range in steps of config.theta_step.
     """
     lo, hi = config.theta_range
     step = config.theta_step
@@ -97,8 +88,8 @@ def theta_values(config: PipelineConfig) -> List[float]:
     return [lo + i * step for i in range(n + 1)]
 
 
-# The trunk is a single inclination (closed form); the other three are
-# two-segment joints (numeric). Every other criterion defaults to numeric.
+# Trunk is a single inclination (closed form); the other three are two-segment
+# joints (numeric).
 _CLOSED_FORM = {"trunk_inclination"}
 
 
@@ -106,9 +97,8 @@ _CLOSED_FORM = {"trunk_inclination"}
 class ProjectionCurve:
     """Per-criterion projected angle across the theta sweep.
 
-    a_true is the prescribed true angle (each rule's reference mean), and
-    projected[i] is how that angle appears at thetas[i]. kind records which
-    model produced it, "closed_form" (trunk) or "numeric" (the joints).
+    a_true is the prescribed true angle (each rule's reference mean); projected[i]
+    is how it appears at thetas[i]. kind is "closed_form" (trunk) or "numeric".
     """
 
     criterion: str
@@ -119,12 +109,11 @@ class ProjectionCurve:
 
 
 def projection_curves(config: PipelineConfig) -> List[ProjectionCurve]:
-    """Projection curve for each of the four criteria over the theta sweep.
+    """Projection curve for each criterion over the theta sweep.
 
-    The true angle of every criterion is prescribed as its reference mean
-    (rules.py); no recording enters. The trunk uses the closed form, the
-    joints the numeric projection, so a criterion's segment length -- how
-    strongly it foreshortens -- shows directly in its curve.
+    Each true angle is prescribed as the rule's reference mean; no recording
+    enters. Trunk uses the closed form, the joints the numeric projection, so
+    segment length (how strongly it foreshortens) shows directly in the curve.
     """
     thetas = theta_values(config)
     curves: List[ProjectionCurve] = []
@@ -140,10 +129,10 @@ def projection_curves(config: PipelineConfig) -> List[ProjectionCurve]:
 
 
 def _print_sanity_table(config: PipelineConfig) -> None:
-    """Print the projected angle of each criterion across the theta sweep.
+    """Print each criterion's projected angle across the theta sweep.
 
-    A quick eye check, not an output artifact: every row starts at its
-    true angle (theta = 0) and shrinks as the viewpoint tilts.
+    A quick eye check, not an artifact: every row starts at its true angle
+    (theta = 0) and shrinks as the viewpoint tilts.
     """
     curves = projection_curves(config)
     header = "criterion".ljust(20) + "".join(

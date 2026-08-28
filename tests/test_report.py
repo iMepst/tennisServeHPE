@@ -38,3 +38,34 @@ def _write_clip(root: str, clip: str, plane: str, trophy: bool, impact: bool,
 def _read_csv(path: str) -> List[Dict[str, str]]:
     with open(path) as f:
         return list(csv.DictReader(f))
+
+def test_build_report_aggregates(tmp_path) -> None:
+    root = str(tmp_path)
+    # Frontal clip: trunk read, knee unavailable (wrong plane).
+    _write_clip(root, "serve_a", "frontal", True, True,
+                _indicators("inside", "unavailable", "outside", "inside"),
+                det_rate=0.95)
+    # Sagittal clip: knee read, trunk unavailable; impact not located.
+    _write_clip(root, "serve_b", "sagittal", True, False,
+                _indicators("unavailable", "outside", "unavailable",
+                            "unavailable"),
+                det_rate=0.80)
+
+    report = build_report(root, os.path.join(root, "_report"),
+                          make_figure=False)
+    assert report["n_clips"] == 2
+
+    ind = {(r["clip"], r["criterion"]): r
+           for r in _read_csv(report["outputs"]["indicators_csv"])}
+    # One row per (clip, criterion): 2 clips x 4 = 8.
+    assert len(ind) == 8
+    # Band bounds are joined from RULES, not re-typed.
+    trunk = _RULE_BY_ID["trunk_inclination"]
+    assert float(ind[("serve_a", "trunk_inclination")]["band_lo"]) == trunk.lo
+    assert float(ind[("serve_a", "trunk_inclination")]["band_hi"]) == trunk.hi
+    # The one-sided knee has no upper bound.
+    assert ind[("serve_b", "front_knee_flexion")]["band_hi"] == ""
+    assert ind[("serve_b", "front_knee_flexion")]["band_kind"] == "lower_bound"
+
+    # Only indicators.csv is emitted; no LaTeX fragments, no availability CSV.
+    assert set(report["outputs"]) == {"indicators_csv"}

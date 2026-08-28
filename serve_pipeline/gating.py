@@ -8,10 +8,6 @@ MASK_OK = "ok"
 MASK_UNDETECTED = "undetected"
 MASK_LOW_VISIBILITY = "low_visibility"
 
-# Value fields carried through from the raw series (kept even when masked).
-_VALUE_FIELDS = ["x", "y", "visibility"]
-
-
 @dataclass
 class GatedSample:
     landmark_id: int

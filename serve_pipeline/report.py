@@ -66,3 +66,55 @@ def load_clip(result_path: str) -> Dict[str, Any]:
     data = read_metadata(result_path)
     data["_stats"] = _extraction_stats(result_path)
     return data
+
+def _band_bounds(rule: Rule) -> Dict[str, Optional[float]]:
+    """The band bounds a criterion is judged against.
+
+    Two-sided rules use [lo, hi]; the one-sided knee uses only the lower
+    bound (hi left None), matching evaluate() in rules.py.
+    """
+    if rule.band_kind == "lower_bound":
+        return {"band_lo": rule.lo, "band_hi": None}
+    return {"band_lo": rule.lo, "band_hi": rule.hi}
+
+
+def indicator_rows(clips: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Long-form rows, one per (clip, criterion), joined with the bands."""
+    rows: List[Dict[str, Any]] = []
+    for clip in clips:
+        params = clip.get("clip_params", {})
+        events = clip.get("key_events", {})
+        for ind in clip.get("indicators", []):
+            rule = _RULE_BY_ID.get(ind["criterion"])
+            bounds = (_band_bounds(rule) if rule
+                      else {"band_lo": None, "band_hi": None})
+            rows.append({
+                "clip": clip.get("clip"),
+                "camera_plane": params.get("camera_plane"),
+                "view_direction": params.get("view_direction"),
+                "criterion": ind["criterion"],
+                "status": ind["status"],
+                "angle": ind.get("angle"),
+                "band_lo": bounds["band_lo"],
+                "band_hi": bounds["band_hi"],
+                "band_kind": rule.band_kind if rule else None,
+                "detail": ind.get("detail"),
+                "trophy_locatable": events.get("trophy_locatable"),
+                "impact_locatable": events.get("impact_locatable"),
+            })
+    return rows
+
+
+def write_csv(path: str, header: List[str],
+              rows: List[Dict[str, Any]]) -> str:
+    with open(path, "w", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=header)
+        writer.writeheader()
+        for row in rows:
+            writer.writerow(row)
+    return path
+_INDICATOR_HEADER = [
+    "clip", "camera_plane", "view_direction", "criterion", "status", "angle",
+    "band_lo", "band_hi", "band_kind", "detail",
+    "trophy_locatable", "impact_locatable",
+]

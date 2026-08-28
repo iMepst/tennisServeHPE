@@ -85,7 +85,7 @@ def run_stage1(video_path: str, outdir: str = "results",
                     break
                 frame_pose = extractor.process(frame.index, frame.time_s,
                                                frame.image_bgr)
-                # persist before anything else can fail
+                # Persist first, before overlay/sheet work can fail.
                 csv_out.write_frame(frame_pose)
                 overlay = draw_pose(frame.image_bgr, frame_pose)
                 vid_out.write(overlay)

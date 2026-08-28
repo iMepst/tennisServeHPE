@@ -5,9 +5,7 @@ from typing import Any, Dict, Iterator
 import cv2
 import numpy as np
 
-# H x W x 3, BGR channel order, dtype uint8 -- the array OpenCV decodes into.
-# Defined here (the pipeline's image entry point) and reused by the modules
-# that pass frames around, so signatures stay readable.
+# OpenCV frame: H×W×3, BGR order, uint8.
 BgrImage = np.ndarray
 
 
@@ -17,7 +15,7 @@ class VideoMetadata:
     fps: float
     width: int
     height: int
-    frame_count_reported: int  # container header value, may be 0 or wrong
+    frame_count_reported: int  # from container header; may be 0 or wrong
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)

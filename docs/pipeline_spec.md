@@ -1,205 +1,138 @@
-# Processing Pipeline — Implementation Spec
+# Processing Pipeline - Implementation Spec
 
-Extracted from methodology.tex, Section 3.5 (`sec:meth_pipeline`). Pairs with
-`rule_base_spec.md` (Stage 4/5 use those rules).
-
-The pipeline turns **one recording** into deviation indicators in **five stages**:
+The pipeline transforms a video recording into technical deviation indicators across five stages:
 
 ```
 recording -> [1] pose extraction -> [2] preprocessing -> [3] key-event detection
           -> [4] angle computation -> [5] rule evaluation -> deviation indicators
 ```
 
-Per-clip parameters (recorded manually, passed in): **serving arm**, **front leg**,
-**camera plane** (frontal / sagittal), **view direction**, **frame rate (fps)**.
+Per-clip parameters (recorded manually and passed at runtime): **serving arm**, **front leg**, **camera plane** (frontal / sagittal), **view direction**, and **frame rate (fps)**.
 
-**Viewpoints, incl. back view.** The frontal plane can be faced from **in front of OR behind** the
-player; both a front view and a **back (posterior) view** support the trunk-inclination criterion.
-Back-view clips are explicitly accepted (they are common in online-scraped footage). So:
-- `camera_plane = "frontal"` covers both front-facing and back-facing views; `"sagittal"` is the
-  side view (knee flexion). An oblique view is rejected (faces no plane cleanly).
-- `view_direction` records the actual facing for provenance: `"front"`/`"back"` when frontal,
-  `"left"`/`"right"` when sagittal. It does **not** change which criterion is available.
-- **No mirroring correction is needed.** All four angles are computed as unsigned magnitudes
-  (`atan2(|u x v|, u.v)`, 0..180), so the left-right flip between a front and a back view does not
-  change any angle. Trunk inclination is two-sided, so its lean direction is irrelevant either way.
-- `serving_arm` and `front_leg` are **anatomical** (body-relative): MediaPipe labels left/right by
-  the person's body, consistently across views. Record the player's actual serving arm / front leg,
-  not "the side on the left of the screen".
+**Viewpoints and camera orientations.** The frontal plane can be recorded from the front or from behind the player; both front and posterior (back) views support the trunk inclination criterion. Posterior views are accepted directly from scraped recordings:
+- `camera_plane = "frontal"` encompasses both anterior and posterior views; `"sagittal"` specifies the lateral view (knee flexion). Oblique viewpoints are excluded.
+- `view_direction` records the facing orientation for provenance (`"front"`/`"back"` for frontal, `"left"`/`"right"` for sagittal) without altering criterion availability.
+- **No mirroring correction required.** All angles are calculated as unsigned planar magnitudes (`atan2(|u x v|, u.v)` in [0, 180] deg). The left-right reflection between anterior and posterior views does not alter the resulting angle. Trunk inclination uses a two-sided band, making the sign of lateral lean irrelevant.
+- `serving_arm` and `front_leg` denote anatomical (body-relative) sides. MediaPipe consistently labels anatomical landmarks across viewpoints. These parameters refer to the player's anatomical limbs rather than screen-space positions.
 
-**Frame rate (`fps`), incl. untagged slow-motion.** Record the **container/playback fps** of the
-file you actually have, and do **not** try to guess a true capture rate. Scraped footage (e.g.
-YouTube) is often slow-motion re-encoded to a normal playback rate, so its capture rate is not
-recoverable — the frames you process are sampled at the container fps, which is the correct
-operating rate for the 120 ms gap bound and the 8 Hz filter (both stay internally consistent with
-that signal). Consequences to keep in mind:
-- The **core outputs do not depend on fps**: the four angles are per-frame geometry and the key
-  events are frame-index extrema. Untagged slow-motion does not corrupt the angles or the verdicts.
-- Do **not** rely on absolute real-world seconds. Report events by **frame index**; the assessment
-  reports event error as a **rate**. Slow-motion actually *helps* localize the brief ball impact,
-  which is why the methodology prefers it.
-- The one real effect: slow-motion pushes true motion frequencies down, so the fixed 8 Hz filter
-  under-smooths a slowed clip relative to a normal-speed one. This is acceptable and conservative
-  (it keeps the peaks); do **not** rescale the cut-off for untagged footage. Note it under the
-  differing-frame-rate limitation.
-- **Optional QC flag (diagnostic, not a correction):** a real trophy-to-contact spans ~0.5-1.0 s of
-  real time, so if `(impact_frame - trophy_frame) / fps` is much larger than ~1 s, the clip is
-  likely slow-motion. Log it as a flag; never convert or "fix" the fps from it.
+**Frame rate (`fps`) and untagged slow-motion.** The container/playback fps of the video file is recorded directly without attempting to infer an unrecoverable capture rate. Online footage often contains slow-motion sequences re-encoded to nominal playback rates; sampling at the container rate provides a consistent temporal baseline for the 120 ms interpolation bound and the 8 Hz filter:
+- **Core outputs are invariant to fps**: the four joint angles reflect per-frame geometry and key events correspond to frame-index extrema.
+- Events are identified by **frame index** rather than absolute physical time; event detection accuracy is evaluated as an offset distribution and move rate. Higher recording rates improve the temporal resolution of the brief impact phase.
+- In slow-motion recordings, physical motion frequencies are scaled downward, meaning the fixed 8 Hz filter provides light smoothing relative to real-time recordings. This preserves peak kinematics without rescaling the filter cut-off.
+- **QC diagnostic flag:** Under real-time conditions, the trophy-to-impact interval spans approximately 0.5 to 1.0 s. If `(impact_frame - trophy_frame) / fps` exceeds 1.0 s, the clip is flagged as `likely_slow_motion` for quality control without modifying the processing rate.
 
 ---
 
-## Stage 1 — Pose extraction
+## Stage 1 - Pose extraction
 
-- **Decode** the video frame by frame with **OpenCV**.
-- **Estimator**: MediaPipe **Tasks API PoseLandmarker**, **heavy** model.
-  - mode = **VIDEO**, track a **single pose**.
-  - detection / tracking / presence thresholds = **0.5** (defaults).
-  - segmentation output = **disabled**.
-  - **No temporal smoothing** — the Tasks API offers none, and video mode only reuses the
-    previous detection to place the tracking region; it does not filter coordinates.
-    → Stage 2 is therefore the *only* temporal filter.
-- **Per frame** the model returns **33 landmarks** in **normalized** image coordinates.
-  - Keep for each landmark: `x`, `y` (image plane) and `visibility`.
-  - **Discard** depth (`z`) and world coordinates.
-  - Frames with **no detected pose**: mark as such but **still carry** them, so the series stays
-    dense across frames and landmarks (no reindexing).
-- **Output**: 2D landmark trajectories `[T frames x 33 landmarks x (x, y, visibility)]`.
+- Video decoding is performed frame-by-frame using OpenCV.
+- **Estimator**: MediaPipe PoseLandmarker (Tasks API, `heavy` model).
+  - Mode: `RunningMode.VIDEO`, tracking a single person (`num_poses = 1`).
+  - Confidence thresholds: detection = 0.5, tracking = 0.5, presence = 0.5.
+  - Segmentation masks: disabled.
+  - No internal temporal smoothing is applied by the Tasks API; Stage 2 provides the single filtering stage.
+- **Per-frame output**: 33 landmarks in normalized image coordinates `(x, y)` in [0, 1] with an associated `visibility` score.
+  - Depth (`z`) and world coordinates are discarded (2D operating point).
+  - Frames without a detected pose are retained with unpopulated fields to maintain a contiguous, fixed-length time series.
+- **Persisted output**: 2D landmark trajectories `[T frames x 33 landmarks x (x, y, visibility)]`.
 
 ---
 
-## Stage 2 — Landmark preprocessing
+## Stage 2 - Landmark preprocessing
 
-Conditions each trajectory in a short, deliberately simple sequence. Implemented with **NumPy /
-SciPy**. Parameters are conventional, not per-recording tuned (feasibility study, not an optimised
-measurement chain).
+Conditioning is applied sequentially using NumPy and SciPy. Parameters follow standard biomechanical conventions:
 
-**Order: (a) visibility gating → (b) short-gap interpolation → (c) low-pass smoothing.**
+**Processing sequence: (a) visibility gating -> (b) short-gap interpolation -> (c) low-pass filtering.**
 
 ### (a) Visibility gating
-- At every frame, a landmark is **reliable** iff `visibility >= 0.5`, else **unreliable**.
-- **Do not discard** samples — store the reliability mark next to the coordinate, so every
-  rejection stays traceable (undetected pose vs. below-threshold landmark).
-- A criterion is later evaluated only where its landmarks are reliable **at the key frame**;
-  an occluded landmark makes that criterion `unavailable`, never a wrong angle.
+- At each frame, a landmark sample is classified as reliable if `visibility >= 0.5`, otherwise unreliable.
+- Samples are retained and marked with their gating state (`ok`, `undetected`, `low_visibility`) to maintain traceability.
+- Downstream rules evaluate angles only when required landmarks meet the reliability threshold at the respective key frame; occluded landmarks result in an `unavailable` status.
 
 ### (b) Short-gap interpolation
-- Bridge an **interior gap** only if it is bounded by reliable samples on **both** sides **and**
-  is **no longer than 120 ms**.
-- Fill by **linear interpolation** between the two reliable endpoints.
-- The **120 ms** bound is defined **in time**, converted **per clip** to a frame count:
-  `max_gap_frames = round(0.120 * fps)`. Same physical gap length holds from 30 to 240 fps.
-- Over-length gaps and edge gaps are **never filled** (a reliable run simply ends there).
-- Mark interpolated samples as **interpolated** (distinct from originally reliable) — Stage 3
-  needs this distinction.
+- Interior gaps bounded by reliable samples on both ends and spanning at most 120 ms are filled via linear interpolation.
+- The temporal threshold is converted to frames per clip: `max_gap_frames = round(0.120 * fps)`.
+- Boundary gaps and gaps exceeding 120 ms remain unpopulated and are marked as unreliable.
+- Interpolated samples are flagged explicitly (`interpolated = True`) to distinguish them from original measurements.
 
-### (c) Low-pass smoothing
-- Filter: **2nd-order Butterworth low-pass**, **8 Hz** cut-off, applied **zero-phase**
-  (forward + backward, e.g. `scipy.signal.filtfilt`) so trajectories are not shifted in time.
-  - Two passes double the effective order to 4th and lower the half-power point slightly below
-    8 Hz — a small fixed offset the feasibility setting accepts.
-- The **8 Hz physical cut-off is fixed** across recordings; **redesign the coefficients per clip**
-  because the normalized cut-off = `8 / (fps/2)` depends on the clip's Nyquist frequency
-  (`fps/2`). 8 Hz stays below Nyquist at every admitted fps (min 30 → Nyquist 15 Hz).
-  - (8 Hz, not the lower locomotion cut-offs, because the fast racket-arm motion near impact
-    holds higher-frequency content.)
-- Run the filter over **each maximal run of reliable + interpolated samples separately**:
-  - An unfilled gap never bridges two runs.
-  - An unreliable sample outside a run cannot leak into a reliable neighbour across the window.
-  - A run **too short** for the filter is carried **unsmoothed**.
+### (c) Low-pass filtering
+- Filter: 2nd-order Butterworth low-pass with an 8 Hz cut-off frequency, applied zero-phase (`scipy.signal.filtfilt`, yielding an effective 4th-order response without phase shift).
+- The 8 Hz physical cut-off is fixed; normalized cut-off coefficients `wn = 8 / (fps / 2)` are computed per clip. The 8 Hz threshold preserves rapid limb motion prior to impact while attenuating high-frequency landmark jitter.
+- Filtering is executed independently across each contiguous segment of valid/interpolated samples. Unfilled gaps isolate separate segments; runs below the minimum filter length (`3 * (order + 1) + 1`) are retained without smoothing.
 
 ---
 
-## Stage 3 — Key-event detection
+## Stage 3 - Key-event detection
 
-Locate two frames from **body landmarks only** (no racket / ball detector — the racket only names
-the instant, it never enters a measured angle). **Run in this order:**
+Two kinematic events are detected from body landmarks without requiring ball or racket tracking:
 
-### 3.1 Ball impact (first)
-- **Proxy**: frame where the **racket-arm wrist is highest** = **minimum y** of the racket-arm
-  wrist over the whole clip (image y grows downward). Racket arm = serving arm (per-clip param).
-- Coincides with the extended reach at contact.
+### 3.1 Ball impact
+- **Kinematic proxy**: frame of minimum vertical coordinate ($y$-minimum, highest image position) for the racket-arm wrist across the complete sequence.
+- Identifies the instant of maximum upward extension.
 
-### 3.2 Trophy position (second)
-- **Proxy**: frame where the **pelvis is lowest** = **maximum y** of the **mid-hip** (midpoint of
-  the two hip landmarks), searched only over frames **before ball impact**.
-- Pelvis is used (not the knee angle or racket) because its **vertical image component is
-  preserved** under orthographic projection, so it is recoverable in both frontal and sagittal
-  views, whereas the knee angle is foreshortened frontally.
-- Both events are **extrema of a single coordinate series**, computed with NumPy over the
-  **filtered** trajectory.
+### 3.2 Trophy position
+- **Kinematic proxy**: frame of maximum vertical coordinate ($y$-maximum, lowest image position) for the pelvis midpoint (mean of left and right hip landmarks), evaluated strictly prior to the detected ball impact.
+- The vertical pelvis trajectory remains invariant under orthographic projection across frontal and sagittal viewpoints.
 
-### Guard conditions (both must hold, else event = `not locatable`)
-1. **Originally reliable sample only.** The event frame must sit on an *originally reliable*
-   sample — **not** an interpolated one (a linear fill is monotonic, holds no interior extremum;
-   matters most for the brief impact peak that a ≤120 ms gap can hide). A boundary extremum
-   sitting at the edge of an unfilled/over-length gap is **not admitted** (the true extremum may
-   lie inside the unobserved gap).
-2. **Wrist-above-trophy check.** Ball impact is accepted only when the wrist there lies **above
-   its trophy height** *and* a **non-degenerate window** separates the two frames. (Guards against
-   incomplete extension / low contact putting the global wrist minimum in the loading region and
-   collapsing the trophy search window.)
-- On failure, report the event as **not locatable** rather than returning it from an interpolated
-  sample, a run edge beside an unfilled gap, or a collapsed window.
+### Guard conditions (both required for valid event localization)
+1. **Originally reliable sample required**: The located extrema must fall on originally measured samples (`valid = True`, `interpolated = False`) and cannot border an unpopulated gap.
+2. **Kinematic consistency and temporal separation**: The wrist position at ball impact must be strictly higher in the image plane than at the trophy position (`wrist_y[impact] < wrist_y[trophy]`), separated by a non-degenerate window of at least two frames.
+- If either condition is violated, the event is marked as `not locatable`.
 
-**Note (shared-input dependence, by design):** pelvis, trunk inclination, and front knee flexion
-all derive from the hip landmarks, so the trophy frame and the two angles read at it are not
-independent — a hip-landmark error shifts both. Documented, not corrected here.
+**Input dependence note:** Pelvis position, trunk inclination, and front knee flexion all incorporate hip landmarks; errors in hip estimation influence both event localization and angle calculation simultaneously.
 
 ---
 
-## Stage 4 — Angle computation
+## Stage 4 - Angle computation
 
-Read the four candidate angles from the **filtered** trajectories at the located key frames:
-trunk inclination + front knee flexion at the **trophy** frame; elbow flexion + shoulder
-elevation at the **ball-impact** frame. Compute an angle **only** when its landmarks are reliable
-at that frame, else `unavailable`.
+Planar angles are computed from filtered landmark coordinates at the detected key frames:
+- Trophy frame: trunk inclination and front knee flexion.
+- Ball impact frame: elbow flexion and shoulder elevation.
 
-Two conventions before any angle is formed:
-- **Rescale normalized coords to pixels**: `x_px = x * width`, `y_px = y * height` (else the frame
-  aspect ratio distorts every angle). Only the two pixel coords enter — depth is discarded.
-- **Angle between two planar vectors** `u`, `v`:
+Calculation conventions:
+- **Coordinate scaling**: Normalized coordinates are converted to pixel space (`x_px = x * width`, `y_px = y * height`) to eliminate aspect ratio distortion.
+- **Planar vector angle formula**:
   ```
-  theta = atan2( |u_x*v_y - u_y*v_x| , u_x*v_x + u_y*v_y )   # 0..180 deg, stable
+  theta = atan2( |u_x * v_y - u_y * v_x| , u_x * v_x + u_y * v_y )
   ```
+  Evaluated in [0, 180] degrees using the cross product magnitude against the dot product for numerical stability.
 
-The four angles (full detail in `rule_base_spec.md`):
-- **Front knee flexion** — turning angle: `u = hip->knee`, `v = knee->ankle` (straight = 0). Front-leg side.
-- **Elbow flexion** — turning angle: `u = shoulder->elbow`, `v = elbow->wrist`. Serving-arm side.
-- **Shoulder elevation** — spanned at serving shoulder: `shoulder->elbow` vs. `shoulder->hip` (same side). Arm along trunk = 0.
-- **Trunk inclination** — trunk axis `mid-hip -> mid-shoulder` vs. image **vertical upward (0,-1)**
-  (upward because normalized y grows downward; recovers the 25.0° reference, not its 180° complement).
-  Mid-hip / mid-shoulder = midpoints of left+right landmarks.
-
----
-
-## Stage 5 — Rule evaluation & indicator generation
-
-- Compare each computed angle against its band (from `rule_base_spec.md`):
-  - Trunk inclination, elbow flexion, shoulder elevation → **symmetric** band `mean ± 1·SD`.
-  - Front knee flexion → **one-sided lower bound** at `mean - 1·SD`.
-- Each criterion returns **inside** or **outside** its reference range.
-- **Output** = the set of **deviation indicators**, each naming the criterion (and, for the knee,
-  the flagged direction = insufficient flexion).
-- **Availability**: an indicator is produced only where **all** conditions hold together —
-  (1) the **camera plane supports** the criterion (trophy criteria are plane-bound: trunk =
-  frontal, front knee = sagittal → only one per recording), (2) the **key frame is locatable**,
-  (3) the **landmarks are reliable** at that frame. Otherwise the criterion is **unavailable**,
-  never forced to a verdict.
-- Indicators are **attention flags for a coach**, not an automated verdict on the serve.
+Angle definitions (detailed in `rule_base_spec.md`):
+- **Front knee flexion**: Turning angle between hip-to-knee and knee-to-ankle vectors on the front-leg side (extended = 0 deg).
+- **Elbow flexion**: Turning angle between shoulder-to-elbow and elbow-to-wrist vectors on the serving-arm side (extended = 0 deg).
+- **Shoulder elevation**: Enclosed angle between upper arm (shoulder-to-elbow) and trunk axis (shoulder-to-hip) on the serving side (arm along torso = 0 deg).
+- **Trunk inclination**: Enclosed angle between trunk axis (mid-hip to mid-shoulder) and the vertical upward reference `(0, -1)`.
 
 ---
 
-## Suggested module layout
+## Stage 5 - Rule evaluation and indicator generation
+
+- Evaluated angles are compared against reference ranges from Jacquier-Bret et al. (2024):
+  - Symmetric band (`mean +/- 1 SD`): Trunk inclination, elbow flexion, shoulder elevation.
+  - One-sided lower bound (`mean - 1 SD`): Front knee flexion (flagging insufficient flexion; deeper flexion remains unpenalized).
+- Status classifications: `inside`, `outside`, or `unavailable`.
+- **Availability gate**: An indicator is generated only when:
+  1. The camera plane matches the criterion (frontal for trunk inclination, sagittal for knee flexion).
+  2. The corresponding key frame is successfully localized.
+  3. All constituent landmarks are reliable at that frame.
+  Otherwise, the indicator is assigned `unavailable`.
+
+---
+
+## Module layout
 
 ```
-pipeline/
-  extract.py     # Stage 1: OpenCV decode + MediaPipe Tasks PoseLandmarker (heavy, VIDEO)
-  preprocess.py  # Stage 2: gating -> interpolate_short_gaps -> butterworth_filtfilt (per-run)
-  keyevents.py   # Stage 3: detect_impact, detect_trophy + guard conditions
-  angles.py      # Stage 4: rescale_to_px, angle_between, four angle readers
-  rules.py       # Stage 5: RULES table + evaluate() (see rule_base_spec.md)
-  run.py         # orchestrates the five stages for one clip; takes per-clip params
+serve_pipeline/
+  stage1_extract.py  # Stage 1: Video decoding, MediaPipe pose extraction, artifact persistence
+  stage2_process.py  # Stage 2: Orchestration for gating (2a) and interpolation/filtering (2b)
+  gating.py          # Stage 2a: Visibility thresholding and gap statistics
+  interpolation.py   # Stage 2b: Linear gap filling under 120 ms
+  filtering.py       # Stage 2b: Butterworth zero-phase filtering
+  keyevents.py       # Stage 3: Impact and trophy event detection with guard conditions
+  angles.py          # Stage 4: Pixel coordinate scaling and planar vector angle functions
+  rules.py           # Stage 5: Reference band definitions and indicator evaluation
+  run.py             # Pipeline orchestrator processing a single clip end to end
 ```
 
-Per-clip params to thread through: `serving_arm`, `front_leg`, `camera_plane`, `view_direction`,
+Runtime parameters: `serving_arm`, `front_leg`, `camera_plane`, `view_direction`, `fps`, `frame_width`, `frame_height`, `view_direction`,
 `fps`, `frame_width`, `frame_height`.

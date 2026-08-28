@@ -3,7 +3,7 @@ import json
 import math
 import os
 import subprocess
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Set
 
 from .gating import GatedFrame, GatedSample
 from .interpolation import ProcessedFrame, ProcessedSample
@@ -62,8 +62,14 @@ class LandmarkCsvWriter:
         self._file.close()
 
 
-def read_landmarks_csv(path: str) -> List[FramePose]:
-    """Reads a landmarks CSV back into a list of FramePose objects."""
+def read_landmarks_csv(path: str,
+                       frame_indices: Optional[Set[int]] = None
+                       ) -> List[FramePose]:
+    """Reads a landmarks CSV back into a list of FramePose objects.
+
+    When frame_indices is given, only those frames are parsed; every other
+    row is skipped (used when just a few key frames are needed).
+    """
     frames: Dict[int, FramePose] = {}
     with open(path, newline="") as f:
         reader = csv.DictReader(f)
@@ -73,6 +79,8 @@ def read_landmarks_csv(path: str) -> List[FramePose]:
             )
         for row in reader:
             idx = int(row["frame"])
+            if frame_indices is not None and idx not in frame_indices:
+                continue
             if idx not in frames:
                 frames[idx] = FramePose(
                     frame_index=idx,

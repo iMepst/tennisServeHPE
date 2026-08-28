@@ -276,10 +276,10 @@ def process_clip(video_path: str, serving_arm: str, front_leg: str,
                  fps: Optional[float] = None,
                  frame_width: Optional[int] = None,
                  frame_height: Optional[int] = None) -> str:
-    """Run one clip end to end (Stages 1-5); returns the result JSON path.
+    """Run one clip end to end; returns the result JSON path.
 
-    Stages 1-2 run (or reuse) on disk; Stages 3-5 run in memory. fps and
-    frame size default to the Stage 1 meta and can be overridden per clip.
+    Extraction/gating/filtering run (or reuse) on disk; the rest runs in memory.
+    fps and frame size default to the extraction meta and can be overridden.
     """
     filtered_csv, stage1_meta = ensure_filtered(
         video_path, outdir=outdir, reuse=reuse, model_path=model_path)
@@ -297,7 +297,7 @@ def process_clip(video_path: str, serving_arm: str, front_leg: str,
 def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(message)s")
     parser = argparse.ArgumentParser(
-        description="Run one serve clip end to end (Stages 1-5); writes "
+        description="Run one serve clip end to end; writes "
                     "results/<clip>/result.json.")
     parser.add_argument("video", help="path to the input serve video")
     # Manually recorded per-clip parameters (anatomical, body-relative).
@@ -316,8 +316,9 @@ def main() -> None:
                         help="path to a pose_landmarker .task file "
                              "(default: the heavy model)")
     parser.add_argument("--no-reuse", dest="reuse", action="store_false",
-                        help="recompute Stages 1-2 even if outputs exist")
-    # fps and frame size default to the Stage 1 meta; override if needed.
+                        help="recompute extraction/gating/filtering even if "
+                             "outputs exist")
+    # fps and frame size default to the extraction meta; override if needed.
     parser.add_argument("--fps", type=float, default=None)
     parser.add_argument("--frame-width", type=int, default=None)
     parser.add_argument("--frame-height", type=int, default=None)

@@ -70,12 +70,10 @@ class OverlayVideoWriter:
 def label_frame(image_bgr: BgrImage, frame_pose: Optional[FramePose],
                 lines: Sequence[str],
                 draw_skeleton: bool = True) -> BgrImage:
-    """One key-frame panel: pose overlay plus a text label block.
+    """One key-frame panel: pose overlay plus a label block.
 
-    Returns a copy of the frame with the detected skeleton drawn (when a
-    FramePose is given and draw_skeleton is set) and the label lines in a
-    dark box below the frame HUD. Used to render the trophy and impact
-    stills; the input frame is not modified.
+    Returns a copy with the skeleton drawn (when frame_pose is given and
+    draw_skeleton set) and the label lines in a dark box below the HUD.
     """
     if draw_skeleton and frame_pose is not None:
         out = draw_pose(image_bgr, frame_pose)
@@ -115,11 +113,9 @@ def save_key_frame_stills(video_path: str, frame_poses: List[FramePose],
                           draw_skeleton: bool = True) -> Optional[str]:
     """Write one side-by-side PNG of the located key frames.
 
-    ``specs`` is a list of ``(frame_index, label lines)``; the named
-    frames are read once from the source video, each gets its pose overlay
-    and label (label_frame), and the panels are tiled left to right in
-    ``specs`` order. Returns out_path, or None when no spec resolves to a
-    frame (e.g. no key event was locatable).
+    specs is a list of (frame_index, label lines): each named frame is read
+    once from the video, overlaid and labelled (label_frame), then tiled left
+    to right in order. Returns None when no spec resolves to a frame.
     """
     if not specs:
         return None

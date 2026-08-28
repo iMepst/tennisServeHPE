@@ -1,6 +1,6 @@
 """BlazePose 33-landmark topology constants."""
 
-# Index position in this list equals the BlazePose landmark id.
+# List index = BlazePose landmark id.
 LANDMARK_NAMES = [
     "nose",
     "left_eye_inner", "left_eye", "left_eye_outer",
@@ -22,7 +22,7 @@ LANDMARK_NAMES = [
 
 NUM_LANDMARKS = len(LANDMARK_NAMES)
 
-# Skeleton edges as (start_id, end_id), matching mediapipe.tasks.python.vision.pose_landmarker.PoseLandmarksConnections.
+# Skeleton edges (start_id, end_id), per BlazePose's PoseLandmarksConnections.
 POSE_CONNECTIONS = [
     (0, 1), (1, 2), (2, 3), (3, 7), (0, 4), (4, 5), (5, 6), (6, 8),
     (9, 10),

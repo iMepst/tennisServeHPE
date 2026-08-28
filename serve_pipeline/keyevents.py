@@ -1,8 +1,5 @@
-"""Stage 3: key-event detection on the filtered trajectory.
-
-Locates ball impact and the trophy position as extrema of single
-coordinate series, from body landmarks only (pipeline_spec.md, Stage 3).
-Runs in memory on the Stage 2 output; nothing is persisted here.
+"""Key-event detection: ball impact and the trophy position as extrema
+of single body-landmark coordinate series. Runs in memory; persists nothing.
 """
 
 from dataclasses import dataclass
@@ -17,14 +14,11 @@ from .landmarks import NAME_TO_ID
 
 def landmark_y_series(frames: List[ProcessedFrame],
                       lm_id: int) -> Tuple[np.ndarray, np.ndarray]:
-    """One landmark's filtered y per frame, with its reliability history.
+    """One landmark's filtered y per frame plus an `original` mask.
 
-    Returns (y, original): y holds the filtered y value and is NaN where
-    the sample is unreliable (an unfilled gap); original marks samples
-    that are *originally* reliable — valid at gating and not filled by
-    interpolation. Only such samples may carry an event frame (guard
-    condition 1: a linear fill is monotonic and holds no interior
-    extremum).
+    y is NaN on unreliable samples; original marks samples valid at gating
+    and not interpolated. Only these may carry an event: a linear fill holds
+    no interior extremum.
     """
     y = np.full(len(frames), np.nan)
     original = np.zeros(len(frames), dtype=bool)
@@ -38,13 +32,10 @@ def landmark_y_series(frames: List[ProcessedFrame],
 
 def guarded_extremum(y: np.ndarray, original: np.ndarray,
                      kind: str) -> Tuple[Optional[int], str]:
-    """Position of the series extremum, or None with the rejection reason.
+    """Position of the min/max over non-NaN values, or None with a reason.
 
-    kind is "min" or "max". The search runs over the reliable (non-NaN)
-    values only; guard condition 1 then rejects an extremum that sits on
-    an interpolated sample (the true extremum may differ from the linear
-    fill) or beside an unfilled gap (the true extremum may lie inside
-    the unobserved gap).
+    Rejects an extremum on an interpolated sample or beside an unfilled gap,
+    where the true extremum may differ from what was observed.
     """
     if not np.isfinite(y).any():
         return None, "no reliable samples in the series"
@@ -59,11 +50,8 @@ def guarded_extremum(y: np.ndarray, original: np.ndarray,
 
 def detect_ball_impact(frames: List[ProcessedFrame],
                        serving_arm: str) -> Tuple[Optional[int], str]:
-    """Ball-impact proxy: frame of the racket-arm wrist's y-minimum.
-
-    Image y grows downward, so the minimum is the wrist's highest point,
-    coinciding with the extended reach at contact. Returns the position
-    in frames and "ok", or None and the guard's rejection reason.
+    """Ball-impact proxy: racket-arm wrist y-minimum, its highest point
+    (image y grows downward), the extended reach at contact.
     """
     if serving_arm not in ("left", "right"):
         raise ValueError(
@@ -75,11 +63,8 @@ def detect_ball_impact(frames: List[ProcessedFrame],
 
 def midhip_y_series(
         frames: List[ProcessedFrame]) -> Tuple[np.ndarray, np.ndarray]:
-    """Pelvis proxy: mean y of the two hip landmarks per frame.
-
-    The mid-hip exists only where both hips are reliable (one NaN makes
-    the mean NaN), and counts as originally reliable only where both
-    hips are.
+    """Pelvis proxy: mean y of the two hips; NaN or non-original unless
+    both hips are reliable and original.
     """
     y_left, orig_left = landmark_y_series(frames, NAME_TO_ID["left_hip"])
     y_right, orig_right = landmark_y_series(frames, NAME_TO_ID["right_hip"])
@@ -88,18 +73,12 @@ def midhip_y_series(
 
 def detect_trophy(frames: List[ProcessedFrame],
                   impact_pos: int) -> Tuple[Optional[int], str]:
-    """Trophy proxy: frame of the mid-hip y-maximum before ball impact.
+    """Trophy proxy: mid-hip y-maximum among frames before impact, the
+    pelvis's lowest point (deepest leg drive; image y grows downward).
 
-    Image y grows downward, so the maximum is the pelvis's lowest point
-    (the deepest leg drive). Searched strictly over the frames before
-    the impact position. Returns the position in frames and "ok", or
-    None and the rejection reason.
-
-    Shared-input dependence, by design: the pelvis proxy, trunk
-    inclination, and front knee flexion all derive from the hip
-    landmarks, so the trophy frame and the two angles read at it are
-    not independent — a hip-landmark error shifts both. Documented
-    here, not corrected.
+    Shared-input dependence, by design: trunk inclination and front-knee
+    flexion also derive from the hips, so the trophy frame and the angles
+    read at it move together under a hip error. Not corrected.
     """
     if impact_pos <= 0:
         return None, "no frames before impact"
@@ -109,7 +88,7 @@ def detect_trophy(frames: List[ProcessedFrame],
 
 @dataclass
 class KeyEvents:
-    """Stage 3 result: the two key frames, or why they are not locatable."""
+    """The two key frames, or why they are not locatable."""
     trophy_frame: Optional[int]
     impact_frame: Optional[int]
     trophy_locatable: bool
@@ -119,13 +98,11 @@ class KeyEvents:
 
 def detect_key_events(frames: List[ProcessedFrame],
                       clip_params: ClipParams) -> KeyEvents:
-    """Run the Stage 3 detection in spec order: impact first, then trophy.
+    """Detect impact first, then trophy.
 
-    Guard condition 2 then accepts ball impact only when the wrist at
-    impact lies above its trophy height and a non-degenerate window (at
-    least one frame) separates the two events. Any failure reports both
-    events as not locatable rather than returning a wrong instant, since
-    each event's validity depends on the other.
+    Accepts impact only when the wrist sits above its trophy height with a
+    non-degenerate window between the events; on any failure both events are
+    reported not locatable, since each depends on the other.
     """
     impact_pos, reason = detect_ball_impact(frames, clip_params.serving_arm)
     if impact_pos is None:
@@ -136,8 +113,7 @@ def detect_key_events(frames: List[ProcessedFrame],
 
     wrist_y, _ = landmark_y_series(
         frames, NAME_TO_ID[f"{clip_params.serving_arm}_wrist"])
-    # NaN at the trophy frame makes the comparison False, so an
-    # unreadable wrist height also rejects the impact.
+    # NaN at trophy makes the comparison False, rejecting the impact too.
     if not wrist_y[impact_pos] < wrist_y[trophy_pos]:
         return KeyEvents(None, None, False, False,
                          "impact: wrist not above its trophy height")
@@ -162,13 +138,11 @@ class SlowMotionFlag:
 def flag_possible_slow_motion(key_events: KeyEvents, fps: float,
                               max_real_seconds: float = 1.0
                               ) -> SlowMotionFlag:
-    """QC flag: does trophy-to-contact take unrealistically long?
+    """QC flag: a trophy-to-contact span well beyond max_real_seconds
+    (real is ~0.5-1.0 s) suggests untagged slow-motion footage.
 
-    A real trophy-to-contact spans roughly 0.5-1.0 s, so a span well
-    beyond max_real_seconds suggests untagged slow-motion footage.
-    Diagnostic only: it never converts, scales, or fixes the fps, and
-    it does not feed back into the detection. When either event is not
-    locatable it reports not assessable instead of a number.
+    Diagnostic only: never touches fps or the detection; not assessable
+    when either event is missing.
     """
     if not (key_events.trophy_locatable and key_events.impact_locatable):
         return SlowMotionFlag(assessable=False, likely_slow_motion=False,

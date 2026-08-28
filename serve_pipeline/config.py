@@ -80,49 +80,37 @@ class PipelineConfig:
 class ClipParams:
     """Manually recorded parameters of one recording.
 
-    Stages 3 and 4 cannot run without them: they decide which wrist
-    marks ball impact, which leg the knee angle is read from, and which
-    of the two plane-bound trophy criteria the viewpoint supports
-    (pipeline_spec.md, header; rule_base_spec.md Section 4).
+    Key-event detection and angle computation need them: which wrist marks
+    impact, which leg the knee angle uses, and which plane-bound trophy
+    criterion the viewpoint supports.
     """
 
-    # Which arm holds the racket. Selects the wrist whose y-minimum
-    # locates ball impact (Stage 3) and the shoulder/elbow/wrist side
-    # for elbow flexion and shoulder elevation (Stage 4). Anatomical,
-    # i.e. body-relative: "left" means the player's left arm regardless
-    # of where the camera stands.
+    # Which arm holds the racket. Selects the wrist whose y-minimum locates
+    # impact and the shoulder/elbow/wrist side for elbow and shoulder angles.
+    # Anatomical (body-relative), regardless of camera position.
     serving_arm: str  # "left" | "right"
 
-    # Which leg stands in front in the stance. Selects the
-    # hip/knee/ankle triplet for front knee flexion (Stage 4).
-    # Anatomical, like serving_arm.
+    # Which leg stands in front. Selects the hip/knee/ankle triplet for front
+    # knee flexion. Anatomical, like serving_arm.
     front_leg: str  # "left" | "right"
 
-    # Which body plane the camera faces. Decides the one core trophy
-    # criterion that is read cleanly: "frontal" -> trunk inclination,
-    # "sagittal" -> front knee flexion (rule_base_spec.md Section 4.1).
-    # "frontal" covers both front and back (posterior) views — back-view
-    # clips are accepted (common in scraped footage) and need no
-    # mirroring, since all angles are unsigned magnitudes.
+    # Which body plane the camera faces, deciding the one trophy criterion read
+    # cleanly: "frontal" -> trunk inclination, "sagittal" -> front knee flexion.
+    # "frontal" covers front and back views (back accepted, no mirroring needed
+    # since all angles are unsigned magnitudes).
     camera_plane: str  # "frontal" | "sagittal"
 
-    # Where the camera stands within that plane: "front"/"back" for
-    # frontal clips, "left"/"right" for sagittal clips. Provenance only:
-    # it documents the recording setup but does not change which
-    # criteria are available.
+    # Where the camera stands within that plane: "front"/"back" (frontal) or
+    # "left"/"right" (sagittal). Provenance only; does not change availability.
     view_direction: str
 
-    # Frame rate of the clip: the container/playback fps of the file at
-    # hand, never a guessed capture rate. Scraped footage may be
-    # untagged slow-motion whose capture rate is not recoverable; the
-    # frames are sampled at the container fps, which is the correct
-    # operating rate for the 120 ms gap bound and the per-clip filter
-    # design (Nyquist), and the core outputs (angles, verdicts) do not
-    # depend on fps (pipeline_spec.md, per-clip parameters and Stage 2).
+    # Frame rate of the clip: the file's container/playback fps, never a guessed
+    # capture rate. Untagged slow-motion is sampled at the container fps, the
+    # correct rate for the 120 ms gap bound and the per-clip filter (Nyquist);
+    # the core outputs do not depend on fps.
     fps: float
 
-    # Frame size in pixels. Rescales normalized landmark coordinates to
-    # pixels before any angle is formed, otherwise the aspect ratio
-    # distorts every angle (rule_base_spec.md Section 0).
+    # Frame size in pixels. Rescales normalized coordinates to pixels before any
+    # angle, else the aspect ratio distorts it.
     frame_width: int
     frame_height: int

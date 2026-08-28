@@ -13,10 +13,10 @@ _DEFAULTS = PipelineConfig()
 
 @dataclass
 class FilterConfig:
-    """Butterworth low-pass parameters, for the metadata note.
+    """Butterworth low-pass parameters.
 
-    Defaults come from PipelineConfig: nominal order 2 (effectively 4th
-    via the filtfilt double pass) with a fixed 8 Hz physical cut-off.
+    Defaults from PipelineConfig: order 2, effectively 4th order via the
+    filtfilt double pass, with a fixed 8 Hz cut-off.
     """
     order: int = _DEFAULTS.butterworth_order
     cutoff_hz: float = _DEFAULTS.cutoff_hz

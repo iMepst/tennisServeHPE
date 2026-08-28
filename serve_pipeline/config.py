@@ -1,12 +1,8 @@
-"""Central configuration for the rule-based serve pipeline.
+"""Central configuration for the serve pipeline.
 
-All fixed parameters prescribed by the specs live here, each annotated
-with its origin. Per-clip parameters (serving arm, front leg, camera
-plane, fps) are recorded manually per recording and passed separately;
-they do not belong in a global config.
-
-Sources: docs/pipeline_spec.md, docs/rule_base_spec.md,
-docs/feasibility_assessment_spec.md.
+Fixed parameters prescribed by the specs, each annotated with its origin.
+Per-clip parameters (serving arm, front leg, camera plane, fps) are recorded
+manually per recording and passed separately.
 """
 
 import os
@@ -19,9 +15,7 @@ _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 @dataclass
 class PipelineConfig:
-    # ------------------------------------------------------------------
-    # Paths (matching the results/<clip>/<stage>/ convention in layout.py)
-    # ------------------------------------------------------------------
+    # Paths (results/<clip>/<stage>/ convention, see layout.py)
     video_dir: str = os.path.join(_REPO_ROOT, "data")
     model_path: str = os.path.join(
         _REPO_ROOT, "models", "pose_landmarker_heavy.task")

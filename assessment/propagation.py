@@ -193,3 +193,61 @@ def angular_spread(criterion: str, a_true: float, theta: float, sigma: float,
         for _ in range(config.mc_samples)])
     return Spread(mean_deg=float(draws.mean()),
                   sd_deg=float(draws.std(ddof=1)))
+
+@dataclass
+class NoisePropagation:
+    """Per-criterion induced spread across the theta sweep at a fixed sigma.
+
+    sd_deg[i] is the angular spread at thetas[i]. a_true and sigma are kept
+    so every output logs the parameters it ran with.
+    """
+
+    criterion: str
+    a_true: float
+    sigma: float
+    mc_samples: int
+    seed: int
+    thetas: List[float]
+    sd_deg: List[float]
+
+
+def noise_propagation(config: PipelineConfig,
+                      sigma: Optional[float] = None) -> List[NoisePropagation]:
+    """Induced angular spread for each criterion over the theta sweep.
+
+    Each true angle is the rule's reference mean. sigma defaults to config.sigma
+    but stays a parameter so each value in config.sigma_sweep can be run in turn;
+    sigma is card-informed and swept, never measured on the clips.
+    """
+    if sigma is None:
+        sigma = config.sigma
+    thetas = theta_values(config)
+    results: List[NoisePropagation] = []
+    for rule in RULES:
+        sd = [angular_spread(rule.id, rule.mean, th, sigma, config).sd_deg
+              for th in thetas]
+        results.append(NoisePropagation(
+            criterion=rule.id, a_true=rule.mean, sigma=sigma,
+            mc_samples=config.mc_samples, seed=config.seed,
+            thetas=thetas, sd_deg=sd))
+    return results
+
+
+def _print_sanity_table(config: PipelineConfig) -> None:
+    """Print the induced angular spread (SD, deg) per criterion over theta.
+
+    A quick eye check, not an artifact: the short arm segments (elbow, shoulder)
+    scatter more than the longer trunk and leg segments.
+    """
+    results = noise_propagation(config)
+    print(f"induced SD (deg), sigma = {config.sigma} px")
+    header = "criterion".ljust(20) + "".join(
+        f"{th:7.0f}" for th in results[0].thetas)
+    print(header)
+    for r in results:
+        row = r.criterion.ljust(20) + "".join(f"{sd:7.2f}" for sd in r.sd_deg)
+        print(row)
+
+
+if __name__ == "__main__":
+    _print_sanity_table(PipelineConfig())

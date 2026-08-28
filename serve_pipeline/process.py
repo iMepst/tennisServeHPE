@@ -260,7 +260,7 @@ def run_filtering(gated_csv_path: str, outdir: Optional[str] = None,
     plot_raw_vs_filtered(
         pre_filter, filtered, f"butterworth {filter_cfg.cutoff_hz:g} Hz",
         landmarks, qc_coord, paths["filtering_qc_png"],
-        title=f"Stage 2b filtered ({qc_coord}) - {clip}",
+        title=f"filtered ({qc_coord}) - {clip}",
         time_window=window)
 
     logger.info("Stage 2b (filtering) complete")

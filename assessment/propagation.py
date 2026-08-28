@@ -119,3 +119,50 @@ def landmark_points(criterion: str, a_true: float) -> List[Point3]:
         return trunk_points(a_true, lengths[0])
     return two_segment_points(a_true, lengths[0], lengths[1],
                               chain=(kind == "chain"))
+
+def project_points(points: List[Point3], theta: float) -> List[Point2]:
+    """Tilt each 3D point out of the image plane by theta and project it.
+
+    Reuses the projection E2 convention (tilt about the vertical, drop depth), so
+    the landmark noise is layered on exactly the image the projection produces.
+    """
+    return [project_orthographic(_tilt_about_vertical(p, theta))
+            for p in points]
+
+
+def add_noise(points: List[Point2], sigma: float,
+              rng: np.random.Generator) -> List[Point2]:
+    """Perturb each 2D landmark by an isotropic Gaussian of SD sigma pixels.
+
+    Independent draw per point and per axis.
+    """
+    return [(x + rng.normal(0.0, sigma), y + rng.normal(0.0, sigma))
+            for x, y in points]
+
+
+def read_angle(criterion: str, points: List[Point2]) -> float:
+    """Read the criterion's angle from its 2D landmark points, degrees.
+
+    Same constructions as the pipeline: trunk axis vs the +y vertical, the
+    knee/elbow turning angle along the chain, the shoulder interior angle
+    at the vertex.
+    """
+    kind = CRITERION_KIND[criterion]
+    if kind == "trunk":
+        (hx, hy), (sx, sy) = points
+        return vector_angle((sx - hx, sy - hy), (0.0, 1.0))
+    (fx, fy), (vx, vy), (lx, ly) = points
+    if kind == "chain":
+        return vector_angle((vx - fx, vy - fy), (lx - vx, ly - vy))
+    # vertex: both arms emanate from the middle point.
+    return vector_angle((fx - vx, fy - vy), (lx - vx, ly - vy))
+
+
+def _noisy_projected_angle(criterion: str, projected: List[Point2],
+                           sigma: float, rng: np.random.Generator) -> float:
+    """One Monte Carlo draw: perturb the projected points, re-read the angle.
+
+    Takes the already-projected points so the projection is done once per
+    (criterion, theta) and only the noise varies across draws.
+    """
+    return read_angle(criterion, add_noise(projected, sigma, rng))

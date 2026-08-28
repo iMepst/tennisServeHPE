@@ -109,7 +109,7 @@ def _fmt(v: Optional[float]) -> str:
 
 
 def write_gated_csv(path: str, gated: List[GatedFrame]) -> None:
-    """Persist the Stage 2a gated series (raw schema + valid/mask_reason)."""
+    """Persist the gated series (raw schema + valid/mask_reason)."""
     with open(path, "w", newline="") as f:
         writer = csv.writer(f)
         writer.writerow(GATED_CSV_HEADER)
@@ -159,7 +159,7 @@ def _bit(flag: bool) -> int:
 
 
 def write_filtered_csv(path: str, frames: List[ProcessedFrame]) -> None:
-    """Persist the Stage 2b filtered series (gated schema + processing flags)."""
+    """Persist the filtered series (gated schema + processing flags)."""
     with open(path, "w", newline="") as f:
         writer = csv.writer(f)
         writer.writerow(FILTERED_CSV_HEADER)

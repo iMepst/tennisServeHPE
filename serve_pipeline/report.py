@@ -188,3 +188,63 @@ _INDICATOR_HEADER = [
     "band_lo", "band_hi", "band_kind", "detail",
     "trophy_locatable", "impact_locatable",
 ]
+
+def build_report(results_root: str, out_dir: str,
+                 make_figure: bool = True) -> Dict[str, Any]:
+    """Aggregate every result.json under results_root into out_dir.
+
+    Returns the written paths and the key-frame figure candidates.
+    """
+    result_paths = find_result_jsons(results_root)
+    if not result_paths:
+        raise FileNotFoundError(
+            f"no {RESULT_JSON} found under {results_root!r} "
+            "(run some clips first)")
+    clips = [load_clip(p) for p in result_paths]
+    os.makedirs(out_dir, exist_ok=True)
+
+    ind_rows = indicator_rows(clips)
+    outputs = {
+        "indicators_csv": write_csv(
+            os.path.join(out_dir, "indicators.csv"),
+            _INDICATOR_HEADER, ind_rows),
+    }
+    if make_figure:
+        outputs["angles_figure"] = plot_angles_vs_bands(
+            clips, os.path.join(out_dir, "angles_vs_bands.png"))
+
+    candidates = key_frame_candidates(clips, results_root)
+    return {"n_clips": len(clips), "outputs": outputs,
+            "key_frame_candidates": candidates}
+
+
+def main() -> None:
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
+    parser = argparse.ArgumentParser(
+        description="Aggregate per-clip result.json files into Results-"
+                    "chapter tables and figures.")
+    parser.add_argument("--results", default="results",
+                        help="results root to scan (default: results)")
+    parser.add_argument("--out", default=None,
+                        help="output dir (default: <results>/_report)")
+    parser.add_argument("--no-figure", dest="make_figure",
+                        action="store_false",
+                        help="skip the angles-vs-bands figure")
+    args = parser.parse_args()
+    out_dir = args.out or os.path.join(args.results, DEFAULT_REPORT_DIR)
+    report = build_report(args.results, out_dir, make_figure=args.make_figure)
+
+    logger.info("Aggregated %d clip(s) into %s", report["n_clips"], out_dir)
+    for name, path in report["outputs"].items():
+        logger.info("  %-18s %s", name, path)
+    if report["key_frame_candidates"]:
+        logger.info("Key-frame figure candidates (both events located):")
+        for png in report["key_frame_candidates"]:
+            logger.info("  %s", png)
+    else:
+        logger.info(
+            "No key-frame candidates (no clip had both events located)")
+
+
+if __name__ == "__main__":
+    main()

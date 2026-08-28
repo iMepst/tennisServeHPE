@@ -51,15 +51,19 @@ def _min_segment_length(cfg: FilterConfig) -> int:
     return 3 * (cfg.order + 1) + 1
 
 
-def _filter_segment(values: np.ndarray, fps: float,
-                    cfg: FilterConfig) -> np.ndarray:
+def _design_lowpass(fps: float, cfg: FilterConfig) -> tuple:
+    """Butterworth coefficients (b, a); invariant over the whole clip."""
     nyquist = 0.5 * fps
     wn = cfg.cutoff_hz / nyquist
     if not 0.0 < wn < 1.0:
         raise ValueError(
             f"cutoff_hz {cfg.cutoff_hz} must be in (0, {nyquist}) at "
             f"fps {fps}")
-    b, a = butter(cfg.order, wn, btype="low")
+    return butter(cfg.order, wn, btype="low")
+
+
+def _filter_segment(values: np.ndarray, b: np.ndarray,
+                    a: np.ndarray) -> np.ndarray:
     return np.asarray(filtfilt(b, a, values), dtype=float)
 
 
@@ -67,6 +71,7 @@ def filter_series(frames: List[ProcessedFrame], fps: float,
                   cfg: FilterConfig) -> Dict[str, Any]:
     """Filter reliable segments in place; flag filtered samples."""
     min_len = _min_segment_length(cfg)
+    coeff_b, coeff_a = _design_lowpass(fps, cfg)
     n_filtered = 0
     n_reliable = 0
     n_short_segments = 0
@@ -81,7 +86,7 @@ def filter_series(frames: List[ProcessedFrame], fps: float,
                 vals = np.array(
                     [getattr(frames[p].samples[lm_id], field)
                      for p in range(a, b + 1)], dtype=float)
-                fvals = _filter_segment(vals, fps, cfg)
+                fvals = _filter_segment(vals, coeff_b, coeff_a)
                 for k, p in enumerate(range(a, b + 1)):
                     setattr(frames[p].samples[lm_id], field, float(fvals[k]))
             for p in range(a, b + 1):

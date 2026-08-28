@@ -1,13 +1,12 @@
-"""Orchestrator: run Stages 3-5 in memory for one clip.
+"""Orchestrator: run key-event detection, angles and rule evaluation in
+memory for one clip.
 
-Stages 1-2 persist to disk (extraction, then gating/filtering). This
-orchestrator picks up the Stage 2 filtered trajectory, runs key-event
-detection (Stage 3), angle computation (Stage 4) and rule evaluation
-(Stage 5) in memory, and writes a single result JSON for the clip
-(pipeline_spec.md, Stages 3-5).
+Extraction, gating and filtering persist to disk; this orchestrator picks up
+the filtered trajectory, runs the in-memory steps, and writes a single result
+JSON for the clip.
 
-The four core outputs do not depend on fps; fps only sets the slow-motion
-QC flag and (upstream) the Stage 2 filter design.
+The four core outputs do not depend on fps; fps only sets the slow-motion QC
+flag and (upstream) the filter design.
 """
 
 import argparse
@@ -46,12 +45,11 @@ logger = logging.getLogger(__name__)
 def ensure_filtered(video_path: str, outdir: str = "results",
                     reuse: bool = True,
                     model_path: Optional[str] = None) -> Tuple[str, str]:
-    """Run (or reuse) Stages 1-2 and return (filtered_csv, stage1_meta).
+    """Run (or reuse) extraction + gating + filtering; return (filtered_csv, meta).
 
-    Stages 1-2 persist to disk; when reuse is set, a stage whose output
-    already exists is skipped rather than recomputed (extraction is the
-    slow step). Returns the paths of the Stage 2 filtered trajectory and
-    the Stage 1 meta JSON, the two inputs the in-memory stages need.
+    These persist to disk; when reuse is set, a step whose output already exists
+    is skipped (extraction is the slow one). Returns the filtered trajectory and
+    the extraction meta JSON, the two inputs the in-memory steps need.
     """
     clip = clip_from_video(video_path)
     stage1_dir = stage_dir(outdir, clip, STAGE1)
@@ -62,22 +60,22 @@ def ensure_filtered(video_path: str, outdir: str = "results",
     gating_meta = os.path.join(stage2_dir, GATING_META_JSON)
     filtered_csv = os.path.join(stage2_dir, "filtered.csv")
 
-    # Stage 1: pose extraction (the slow step).
+    # Pose extraction (the slow step).
     if reuse and os.path.isfile(landmarks_csv):
-        logger.info("Stage 1: reusing %s", landmarks_csv)
+        logger.info("extraction: reusing %s", landmarks_csv)
     else:
         run_extraction(video_path, outdir=outdir,
                        model_path=model_path or DEFAULT_MODEL)
 
-    # Stage 2a: visibility gating.
+    # Visibility gating.
     if reuse and os.path.isfile(gated_csv):
-        logger.info("Stage 2a: reusing %s", gated_csv)
+        logger.info("gating: reusing %s", gated_csv)
     else:
         run_gating(landmarks_csv, meta_path=stage1_meta)
 
-    # Stage 2b: interpolation + low-pass filtering.
+    # Interpolation + low-pass filtering.
     if reuse and os.path.isfile(filtered_csv):
-        logger.info("Stage 2b: reusing %s", filtered_csv)
+        logger.info("filtering: reusing %s", filtered_csv)
     else:
         run_filtering(gated_csv, meta_path=gating_meta)
 
@@ -88,12 +86,11 @@ def _resolve_video_meta(filtered_csv: str, stage1_meta: Optional[str],
                         fps: Optional[float], frame_width: Optional[int],
                         frame_height: Optional[int]
                         ) -> Tuple[float, int, int]:
-    """fps and frame size, from the Stage 1 meta JSON unless overridden.
+    """fps and frame size, from the extraction meta JSON unless overridden.
 
-    The Stage 1 meta records the container fps and frame dimensions of the
-    decoded video; explicit arguments win over it (e.g. to record a
-    manually corrected container fps). Falls back to auto-detecting the
-    Stage 1 meta next to the clip's stage1 folder.
+    The meta records the container fps and frame dimensions; explicit arguments
+    win (e.g. a manually corrected fps). Falls back to auto-detecting the meta
+    in the clip's stage1 folder.
     """
     if stage1_meta is None:
         clip_dir = os.path.dirname(
@@ -112,14 +109,14 @@ def _resolve_video_meta(filtered_csv: str, stage1_meta: Optional[str],
                     else video.get("height"))
     if fps is None or frame_width is None or frame_height is None:
         raise ValueError(
-            "fps, frame_width and frame_height must come from the Stage 1 "
+            "fps, frame_width and frame_height must come from the extraction "
             "meta JSON or be passed explicitly.")
     return float(fps), int(frame_width), int(frame_height)
 
 
 @dataclass
 class ClipResult:
-    """In-memory result of Stages 3-4 for one clip (Stage 5 added later)."""
+    """In-memory result for one clip (indicators added later)."""
     clip: str
     clip_params: ClipParams
     frames: List[ProcessedFrame]
@@ -134,12 +131,11 @@ def run_clip(filtered_csv: str, serving_arm: str, front_leg: str,
              fps: Optional[float] = None,
              frame_width: Optional[int] = None,
              frame_height: Optional[int] = None) -> ClipResult:
-    """Run Stages 3-4 in memory on a Stage 2 filtered trajectory.
+    """Run key-event detection and angle computation on a filtered trajectory.
 
-    The manual per-clip parameters (anatomical serving arm / front leg,
-    camera plane, view direction) are recorded by hand; fps and frame
-    size default to the Stage 1 meta. Returns the located key events, the
-    slow-motion QC flag and the four angle readings.
+    The manual per-clip parameters (anatomical serving arm / front leg, camera
+    plane, view direction) are recorded by hand; fps and frame size default to
+    the extraction meta. Returns the key events, slow-motion flag and angles.
     """
     clip = clip_from_stage_file(filtered_csv)
     fps, frame_width, frame_height = _resolve_video_meta(
@@ -161,13 +157,12 @@ def run_clip(filtered_csv: str, serving_arm: str, front_leg: str,
 
 def assemble_result(result: ClipResult,
                     filtered_csv: str) -> Dict[str, Any]:
-    """Stage 5 plus provenance, as the single result dict for the clip.
+    """Rule evaluation plus provenance, as the single result dict for the clip.
 
-    Runs rule evaluation on the angle readings and gathers the whole
-    in-memory chain (key frames, slow-motion flag, angles, indicators)
-    into one JSON-serialisable record. The dense per-frame trajectory is
-    deliberately left out: only the located instants and their readings
-    are reported.
+    Runs rule evaluation on the angle readings and gathers the in-memory chain
+    (key frames, slow-motion flag, angles, indicators) into one JSON record.
+    The dense per-frame trajectory is left out: only the located instants are
+    reported.
     """
     indicators: List[Indicator] = evaluate_all(result.angles,
                                                result.clip_params)
@@ -190,9 +185,8 @@ def write_result(filtered_csv: str,
                  result_dict: Dict[str, Any]) -> str:
     """Write the result dict to results/<clip>/result.json.
 
-    The single JSON sits in the clip's results folder beside the
-    persisted stage1/stage2 subfolders; Stages 3-5 hold nothing else on
-    disk.
+    Sits in the clip's results folder beside the persisted stage1/stage2
+    subfolders; the in-memory steps hold nothing else on disk.
     """
     clip_dir = os.path.dirname(
         os.path.dirname(os.path.abspath(filtered_csv)))
@@ -211,10 +205,9 @@ def write_key_frame_stills(video_path: str, stage1_meta: str,
                            result: ClipResult) -> Optional[str]:
     """Render results/<clip>/key_frames.png: the trophy and impact stills.
 
-    Reads the raw landmarks persisted by Stage 1 for the pose overlay and
-    the located key frames from the Stage 3 result, labels each with the
-    angles read at it (Stage 4), and tiles them side by side. Returns the
-    PNG path, or None when neither key frame was locatable.
+    Reads the raw landmarks for the pose overlay and the located key frames
+    from the result, labels each with the angles read at it, and tiles them
+    side by side. Returns None when neither key frame was locatable.
     """
     ev = result.key_events
     ang = result.angles
@@ -231,9 +224,9 @@ def write_key_frame_stills(video_path: str, stage1_meta: str,
             _angle_line("shoulder elev", ang.shoulder_elevation)]))
     if not specs:
         return None
-    # The stills are an optional QC figure: they need the source video and
-    # the Stage 1 raw landmarks, neither of which Stages 3-5 otherwise
-    # require. Skip (rather than fail the run) when either is unavailable.
+    # Optional QC figure: needs the source video and the raw landmarks, neither
+    # of which the in-memory steps otherwise require. Skip (rather than fail the
+    # run) when either is unavailable.
     landmarks_csv = os.path.join(os.path.dirname(stage1_meta), "landmarks.csv")
     if not (os.path.isfile(video_path) and os.path.isfile(landmarks_csv)
             and os.path.getsize(landmarks_csv) > 0):

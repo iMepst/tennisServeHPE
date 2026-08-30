@@ -129,3 +129,54 @@ def test_estimate_event_error_handles_not_locatable(tmp_path):
     assert err.impact.move_rate_by_tolerance[1] == 1.0
     assert math.isnan(err.impact.mean_offset)
 
+
+# --- measured runner -------------------------------------------------------
+
+def test_measured_assessment_runs_event_error_and_sigma_sweep(tmp_path):
+    from assessment.run_measured import measured_assessment
+    from serve_pipeline.rules import RULES
+
+    config = PipelineConfig()
+    results_root = str(tmp_path / "results")
+    _make_event_clip(results_root, "clipA")     # full clip_params + filtered
+
+    ann_dir = tmp_path / "annotations"
+    ann_dir.mkdir()
+    with open(ann_dir / "events.csv", "w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(["clip", "true_trophy_frame", "true_impact_frame"])
+        writer.writerow(["clipA", 2, 6])
+
+    m = measured_assessment(config, str(ann_dir), results_root)
+
+    assert m.event_error is not None
+    assert m.event_error.impact.n_locatable == 1
+    # The synthetic core is reported over the whole sigma sweep, one point
+    # per swept sigma, each carrying every rule.
+    assert m.sigma_sweep == list(config.sigma_sweep)
+    assert [p.sigma for p in m.sweep] == list(config.sigma_sweep)
+    for point in m.sweep:
+        assert len(point.decidability) == len(RULES)
+        assert point.propagation[0].sigma == pytest.approx(point.sigma)
+
+
+def test_measured_assessment_without_event_annotation(tmp_path):
+    from assessment.run_measured import measured_assessment
+
+    config = PipelineConfig()
+    m = measured_assessment(config, str(tmp_path / "missing"))
+
+    assert m.event_error is None
+    assert [p.sigma for p in m.sweep] == list(config.sigma_sweep)
+
+
+def test_swept_sigma_changes_spread():
+    # A different sigma must move the induced spread; otherwise the sweep
+    # would not actually feed the synthetic core.
+    from assessment.propagation import noise_propagation
+
+    config = PipelineConfig()
+    base = noise_propagation(config, sigma=config.sigma)
+    doubled = noise_propagation(config, sigma=config.sigma * 2.0)
+    for a, b in zip(base, doubled):
+        assert b.sd_deg != a.sd_deg

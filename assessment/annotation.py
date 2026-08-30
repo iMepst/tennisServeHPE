@@ -40,3 +40,18 @@ class EventAnnotation:
     true_trophy_frame: int
     true_impact_frame: int
 
+
+def read_event_annotations(path: str) -> List[EventAnnotation]:
+    """Read an event annotation CSV (docs/annotation_formats.md, E3)."""
+    with open(path, newline="") as f:
+        reader = csv.DictReader(f)
+        if reader.fieldnames != _EVENT_HEADER:
+            raise ValueError(
+                f"Unexpected event annotation schema in {path}: "
+                f"{reader.fieldnames}")
+        return [EventAnnotation(
+                    clip=row["clip"],
+                    true_trophy_frame=int(row["true_trophy_frame"]),
+                    true_impact_frame=int(row["true_impact_frame"]))
+                for row in reader]
+

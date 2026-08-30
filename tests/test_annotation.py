@@ -85,3 +85,16 @@ def test_event_type_error_rate_and_distribution():
     assert err.median_offset == 0.0
     assert err.n_large_failures == 0
 
+
+def test_event_type_error_robust_to_heavy_tail():
+    # One catastrophic miss must register as a large failure and drag the
+    # mean, while the median and IQR stay near the well-timed bulk.
+    err = _event_type_error("impact", [0, -1, 1, 0, 200],
+                            tolerances=(1,), large_offset_frames=30)
+    assert err.n_large_failures == 1               # only |200| >= 30
+    assert err.median_offset == 0.0                # robust to the tail
+    assert err.max_abs_offset == 200.0
+    assert err.mean_offset == pytest.approx(40.0)  # mean dragged up by tail
+    assert not math.isnan(err.iqr_offset)
+    assert err.iqr_offset < err.max_abs_offset
+

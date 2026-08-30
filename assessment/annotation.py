@@ -152,3 +152,53 @@ def _event_type_error(event: str, offsets: List[Optional[int]],
                              if abs(o) >= large_offset_frames),
         mean_offset=statistics.fmean(located) if located else math.nan)
 
+
+@dataclass
+class EventError:
+    """Event-error rate (E3) over the annotated clips, per event type."""
+
+    n_clips: int
+    trophy: EventTypeError
+    impact: EventTypeError
+
+
+def estimate_event_error(annotations: List[EventAnnotation],
+                         results_root: Optional[str] = None,
+                         tolerances: Optional[Tuple[int, ...]] = None,
+                         large_offset_frames: Optional[int] = None
+                         ) -> EventError:
+    """Measure the event-error rate (E3) from the manual frame check.
+
+    For each annotated clip, detect the key events and record the frame
+    offset detected - true for trophy and impact. Reported as move rates at
+    a set of tolerances (share of events the manual check has to shift beyond
+    each tolerance, with not-locatable events counted as needing a move) plus
+    the robust offset distribution (median / IQR / max-abs, large-failure
+    count, mean secondary). Tolerances and the large-failure threshold default
+    to the config values.
+    """
+    config = PipelineConfig()
+    if results_root is None:
+        results_root = config.results_root
+    if tolerances is None:
+        tolerances = config.event_tolerances_frames
+    if large_offset_frames is None:
+        large_offset_frames = config.event_large_offset_frames
+
+    trophy_offsets: List[Optional[int]] = []
+    impact_offsets: List[Optional[int]] = []
+    for ann in annotations:
+        det_trophy, det_impact = _detect_events(ann.clip, results_root)
+        trophy_offsets.append(
+            None if det_trophy is None
+            else det_trophy - ann.true_trophy_frame)
+        impact_offsets.append(
+            None if det_impact is None
+            else det_impact - ann.true_impact_frame)
+
+    return EventError(
+        n_clips=len(annotations),
+        trophy=_event_type_error("trophy", trophy_offsets, tolerances,
+                                 large_offset_frames),
+        impact=_event_type_error("impact", impact_offsets, tolerances,
+                                 large_offset_frames))

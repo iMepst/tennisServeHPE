@@ -118,3 +118,37 @@ class EventTypeError:
     n_large_failures: int
     mean_offset: float
 
+
+def _event_type_error(event: str, offsets: List[Optional[int]],
+                      tolerances: Tuple[int, ...],
+                      large_offset_frames: int) -> EventTypeError:
+    """Aggregate one event type's per-clip offsets (None = not locatable)."""
+    located = [o for o in offsets if o is not None]
+    n_clips = len(offsets)
+    n_not_locatable = n_clips - len(located)
+
+    # Move rate at each tolerance: a not-locatable event always needs a move.
+    n_moved_by_tolerance: Dict[int, int] = {}
+    move_rate_by_tolerance: Dict[int, float] = {}
+    for tol in tolerances:
+        n_moved = sum(1 for o in located if abs(o) > tol)
+        n_needs_move = n_moved + n_not_locatable
+        n_moved_by_tolerance[tol] = n_moved
+        move_rate_by_tolerance[tol] = (
+            n_needs_move / n_clips if n_clips else math.nan)
+
+    return EventTypeError(
+        event=event, n_clips=n_clips, n_locatable=len(located),
+        n_not_locatable=n_not_locatable,
+        tolerances=tuple(tolerances),
+        n_moved_by_tolerance=n_moved_by_tolerance,
+        move_rate_by_tolerance=move_rate_by_tolerance,
+        median_offset=statistics.median(located) if located else math.nan,
+        iqr_offset=_robust_spread(located),
+        max_abs_offset=float(max(abs(o) for o in located))
+        if located else math.nan,
+        large_offset_frames=large_offset_frames,
+        n_large_failures=sum(1 for o in located
+                             if abs(o) >= large_offset_frames),
+        mean_offset=statistics.fmean(located) if located else math.nan)
+

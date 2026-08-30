@@ -70,3 +70,16 @@ def _detect_events(clip: str, results_root: str
     impact = events.impact_frame if events.impact_locatable else None
     return trophy, impact
 
+
+def _robust_spread(values: List[int]) -> float:
+    """Interquartile range (Q3 - Q1) of the offsets, in frames.
+
+    A robust spread: unlike the standard deviation it ignores the few
+    extreme slow-motion misses in the tail, so it describes where the bulk
+    of the offsets sit. Needs at least two points; nan below that.
+    """
+    if len(values) < 2:
+        return math.nan
+    q1, _median, q3 = statistics.quantiles(values, n=4)
+    return q3 - q1
+

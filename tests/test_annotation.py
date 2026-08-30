@@ -59,3 +59,29 @@ def _make_event_clip(results_root, clip, locatable=True):
     write_metadata(os.path.join(results_root, clip, "result.json"),
                    {"clip_params": _CLIP_PARAMS})
 
+
+def test_read_event_annotations_rejects_bad_schema(tmp_path):
+    path = tmp_path / "e.csv"
+    with open(path, "w", newline="") as f:
+        f.write("clip,trophy,impact\nc,1,2\n")
+    with pytest.raises(ValueError):
+        read_event_annotations(str(path))
+
+
+def test_event_type_error_rate_and_distribution():
+    # Offsets in frames; None marks a not-locatable event.
+    err = _event_type_error("trophy", [0, 2, -3, None],
+                            tolerances=(1, 3), large_offset_frames=30)
+    assert err.n_clips == 4
+    assert err.n_locatable == 3
+    assert err.n_not_locatable == 1
+    # tol 1: |2| and |-3| exceed -> 2 moved; tol 3: neither exceeds -> 0 moved.
+    assert err.n_moved_by_tolerance[1] == 2
+    assert err.n_moved_by_tolerance[3] == 0
+    # 2 moved + 1 not locatable at tol 1; only the not-locatable one at tol 3.
+    assert err.move_rate_by_tolerance[1] == pytest.approx(3 / 4)
+    assert err.move_rate_by_tolerance[3] == pytest.approx(1 / 4)
+    assert err.max_abs_offset == 3.0
+    assert err.median_offset == 0.0
+    assert err.n_large_failures == 0
+

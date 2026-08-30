@@ -83,3 +83,38 @@ def _robust_spread(values: List[int]) -> float:
     q1, _median, q3 = statistics.quantiles(values, n=4)
     return q3 - q1
 
+
+@dataclass
+class EventTypeError:
+    """Offset statistics for one event type (trophy or impact) across clips.
+
+    Robust-first: the headline is the median offset and the interquartile
+    spread (iqr_offset), which the heavy offset tail (a few mistimed
+    slow-motion clips off by well over 100 frames) does not distort;
+    mean_offset is kept only as a secondary field. Offsets are
+    detected - true, in frames; max_abs_offset is the largest correction
+    over the locatable events, and n_large_failures counts the locatable
+    events off by at least large_offset_frames.
+
+    A not-locatable event carries no offset but still needs the manual check
+    to supply the frame, so it counts toward every move rate and is reported
+    separately as n_not_locatable. move_rate_by_tolerance[t] is the share of
+    all annotated clips the check has to move at tolerance t frames
+    (|offset| > t, or not locatable); reporting several tolerances exposes
+    the usually-accurate, rarely-far-off structure a single tolerance hides.
+    """
+
+    event: str
+    n_clips: int
+    n_locatable: int
+    n_not_locatable: int
+    tolerances: Tuple[int, ...]
+    n_moved_by_tolerance: Dict[int, int]
+    move_rate_by_tolerance: Dict[int, float]
+    median_offset: float
+    iqr_offset: float
+    max_abs_offset: float
+    large_offset_frames: int
+    n_large_failures: int
+    mean_offset: float
+

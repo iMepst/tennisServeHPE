@@ -15,8 +15,7 @@ from serve_pipeline.persistence import write_filtered_csv, write_metadata
 _W, _H = 1000, 1000  # frame size chosen so px = normalized * 1000.
 
 
-# --- E3: event error -------------------------------------------------------
-
+# E3: event error
 _CLIP_PARAMS = {
     "serving_arm": "right", "front_leg": "left", "camera_plane": "frontal",
     "view_direction": "back", "fps": 25.0,
@@ -130,8 +129,7 @@ def test_estimate_event_error_handles_not_locatable(tmp_path):
     assert math.isnan(err.impact.mean_offset)
 
 
-# --- measured runner -------------------------------------------------------
-
+# Measured runner
 def test_measured_assessment_runs_event_error_and_sigma_sweep(tmp_path):
     from assessment.run_measured import measured_assessment
     from serve_pipeline.rules import RULES

@@ -1,0 +1,42 @@
+"""E3 event error from the manual frame check (feasibility_assessment_spec.md,
+Section 3b).
+
+The synthetic core (propagation.py, decidability.py) runs over a sigma taken
+from the estimator's reported accuracy and swept as a sensitivity range; it
+needs no recordings. This module measures the one empirical number the
+recordings actually supply:
+
+- E3: the event-error rate, from the offset between the detected key frames
+  and the manually judged ones (trophy position and ball impact).
+
+The event annotation is produced externally and exported as CSV
+(docs/annotation_formats.md). Nothing here writes or generates it.
+"""
+
+import csv
+import math
+import os
+import statistics
+from dataclasses import dataclass
+from typing import Dict, List, Optional, Tuple
+
+from serve_pipeline.config import ClipParams, PipelineConfig
+from serve_pipeline.keyevents import detect_key_events
+from serve_pipeline.persistence import read_filtered_csv, read_metadata
+
+# --------------------------------------------------------------------------
+# E3: event-detection stability (feasibility_assessment_spec.md, Section 3b).
+# --------------------------------------------------------------------------
+
+_EVENT_HEADER = ["clip", "true_trophy_frame", "true_impact_frame"]
+
+
+@dataclass
+class EventAnnotation:
+    """The manually judged key frames of one clip (docs/annotation_formats.md,
+    E3): integer frame indices judged by eye from the video."""
+
+    clip: str
+    true_trophy_frame: int
+    true_impact_frame: int
+

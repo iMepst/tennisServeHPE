@@ -55,3 +55,18 @@ def read_event_annotations(path: str) -> List[EventAnnotation]:
                     true_impact_frame=int(row["true_impact_frame"]))
                 for row in reader]
 
+
+def _detect_events(clip: str, results_root: str
+                   ) -> Tuple[Optional[int], Optional[int]]:
+    """Detected (trophy_frame, impact_frame) for a clip, each None when the
+    event is not locatable. Runs Stage 3 on the clip's filtered trajectory
+    with the clip's manually recorded parameters."""
+    meta = read_metadata(os.path.join(results_root, clip, "result.json"))
+    clip_params = ClipParams(**meta["clip_params"])
+    frames = read_filtered_csv(
+        os.path.join(results_root, clip, "stage2", "filtered.csv"))
+    events = detect_key_events(frames, clip_params)
+    trophy = events.trophy_frame if events.trophy_locatable else None
+    impact = events.impact_frame if events.impact_locatable else None
+    return trophy, impact
+

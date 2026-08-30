@@ -1,16 +1,10 @@
-"""E3 event error from the manual frame check (feasibility_assessment_spec.md,
-Section 3b).
+"""E3 event error from the manual frame check.
 
-The synthetic core (propagation.py, decidability.py) runs over a sigma taken
-from the estimator's reported accuracy and swept as a sensitivity range; it
-needs no recordings. This module measures the one empirical number the
-recordings actually supply:
+The synthetic core (propagation.py, decidability.py) needs no recordings. This
+module measures the one empirical number the recordings supply:
 
-- E3: the event-error rate, from the offset between the detected key frames
-  and the manually judged ones (trophy position and ball impact).
-
-The event annotation is produced externally and exported as CSV
-(docs/annotation_formats.md). Nothing here writes or generates it.
+- E3: the event-error rate, from the offset between the detected key frames and
+  the manually judged ones (trophy position and ball impact).
 """
 
 import csv
@@ -24,17 +18,14 @@ from serve_pipeline.config import ClipParams, PipelineConfig
 from serve_pipeline.keyevents import detect_key_events
 from serve_pipeline.persistence import read_filtered_csv, read_metadata
 
-# --------------------------------------------------------------------------
-# E3: event-detection stability (feasibility_assessment_spec.md, Section 3b).
-# --------------------------------------------------------------------------
-
+# E3: event-detection stability.
 _EVENT_HEADER = ["clip", "true_trophy_frame", "true_impact_frame"]
 
 
 @dataclass
 class EventAnnotation:
-    """The manually judged key frames of one clip (docs/annotation_formats.md,
-    E3): integer frame indices judged by eye from the video."""
+    """The manually judged key frames of one clip: integer frame indices judged
+    by eye from the video (docs/annotation_formats.md)."""
 
     clip: str
     true_trophy_frame: int
@@ -42,7 +33,7 @@ class EventAnnotation:
 
 
 def read_event_annotations(path: str) -> List[EventAnnotation]:
-    """Read an event annotation CSV (docs/annotation_formats.md, E3)."""
+    """Read an event annotation CSV (docs/annotation_formats.md)."""
     with open(path, newline="") as f:
         reader = csv.DictReader(f)
         if reader.fieldnames != _EVENT_HEADER:
@@ -58,9 +49,9 @@ def read_event_annotations(path: str) -> List[EventAnnotation]:
 
 def _detect_events(clip: str, results_root: str
                    ) -> Tuple[Optional[int], Optional[int]]:
-    """Detected (trophy_frame, impact_frame) for a clip, each None when the
-    event is not locatable. Runs Stage 3 on the clip's filtered trajectory
-    with the clip's manually recorded parameters."""
+    """Detected (trophy_frame, impact_frame) for a clip, each None when not
+    locatable. Runs key-event detection on the filtered trajectory with the
+    clip's recorded parameters."""
     meta = read_metadata(os.path.join(results_root, clip, "result.json"))
     clip_params = ClipParams(**meta["clip_params"])
     frames = read_filtered_csv(
@@ -88,20 +79,17 @@ def _robust_spread(values: List[int]) -> float:
 class EventTypeError:
     """Offset statistics for one event type (trophy or impact) across clips.
 
-    Robust-first: the headline is the median offset and the interquartile
-    spread (iqr_offset), which the heavy offset tail (a few mistimed
-    slow-motion clips off by well over 100 frames) does not distort;
-    mean_offset is kept only as a secondary field. Offsets are
-    detected - true, in frames; max_abs_offset is the largest correction
-    over the locatable events, and n_large_failures counts the locatable
-    events off by at least large_offset_frames.
+    Robust-first: the headline is the median offset and interquartile spread
+    (iqr_offset), undistorted by the heavy tail of a few mistimed slow-motion
+    clips; mean_offset is secondary. Offsets are detected - true, in frames;
+    max_abs_offset is the largest correction, n_large_failures counts events off
+    by at least large_offset_frames.
 
-    A not-locatable event carries no offset but still needs the manual check
-    to supply the frame, so it counts toward every move rate and is reported
-    separately as n_not_locatable. move_rate_by_tolerance[t] is the share of
-    all annotated clips the check has to move at tolerance t frames
-    (|offset| > t, or not locatable); reporting several tolerances exposes
-    the usually-accurate, rarely-far-off structure a single tolerance hides.
+    A not-locatable event carries no offset but still needs the manual check, so
+    it counts toward every move rate (reported as n_not_locatable).
+    move_rate_by_tolerance[t] is the share of clips the check must move at
+    tolerance t (|offset| > t, or not locatable); several tolerances expose the
+    usually-accurate, rarely-far-off structure.
     """
 
     event: str
@@ -169,13 +157,11 @@ def estimate_event_error(annotations: List[EventAnnotation],
                          ) -> EventError:
     """Measure the event-error rate (E3) from the manual frame check.
 
-    For each annotated clip, detect the key events and record the frame
-    offset detected - true for trophy and impact. Reported as move rates at
-    a set of tolerances (share of events the manual check has to shift beyond
-    each tolerance, with not-locatable events counted as needing a move) plus
-    the robust offset distribution (median / IQR / max-abs, large-failure
-    count, mean secondary). Tolerances and the large-failure threshold default
-    to the config values.
+    For each annotated clip, detect the key events and record the offset
+    detected - true for trophy and impact. Reported as move rates at a set of
+    tolerances (not-locatable counted as needing a move) plus the robust offset
+    distribution (median / IQR / max-abs, large-failure count, mean secondary).
+    Tolerances and the large-failure threshold default to the config values.
     """
     config = PipelineConfig()
     if results_root is None:

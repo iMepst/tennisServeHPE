@@ -98,3 +98,34 @@ def test_event_type_error_robust_to_heavy_tail():
     assert not math.isnan(err.iqr_offset)
     assert err.iqr_offset < err.max_abs_offset
 
+
+def test_estimate_event_error_offsets(tmp_path):
+    results_root = str(tmp_path / "results")
+    _make_event_clip(results_root, "clipA")   # detects trophy=2, impact=7
+    _make_event_clip(results_root, "clipB")
+    anns = [
+        EventAnnotation("clipA", true_trophy_frame=2, true_impact_frame=6),
+        EventAnnotation("clipB", true_trophy_frame=2, true_impact_frame=3),
+    ]
+    err = estimate_event_error(anns, results_root, tolerances=(1,))
+
+    assert err.trophy.n_moved_by_tolerance[1] == 0    # both trophy offsets 0
+    assert err.trophy.move_rate_by_tolerance[1] == 0.0
+    # impact offsets: clipA 7-6=1 (within tol), clipB 7-3=4 (moved).
+    assert err.impact.n_moved_by_tolerance[1] == 1
+    assert err.impact.max_abs_offset == 4.0
+    assert err.impact.n_not_locatable == 0
+
+
+def test_estimate_event_error_handles_not_locatable(tmp_path):
+    results_root = str(tmp_path / "results")
+    _make_event_clip(results_root, "clipX", locatable=False)
+    anns = [EventAnnotation("clipX", true_trophy_frame=2, true_impact_frame=7)]
+    err = estimate_event_error(anns, results_root)
+
+    assert err.trophy.n_not_locatable == 1
+    assert err.impact.n_not_locatable == 1
+    # A not-locatable event needs a move at every tolerance.
+    assert err.impact.move_rate_by_tolerance[1] == 1.0
+    assert math.isnan(err.impact.mean_offset)
+

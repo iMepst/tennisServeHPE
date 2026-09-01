@@ -177,3 +177,55 @@ def test_run_meta_logs_every_parameter(tmp_path):
     # E4 is recorded as deliberately unquantified, never given a number.
     assert "e4_definitional_mismatch" in meta["notes"]
 
+
+def test_event_error_dict_serialises_robust_stats():
+    # A heavy-tailed impact series: robust fields lead, mean is secondary.
+    impact = _event_type_error("impact", [0, -1, 1, 200],
+                               tolerances=(1, 3), large_offset_frames=30)
+    trophy = _event_type_error("trophy", [0, 0, 0, 0],
+                               tolerances=(1, 3), large_offset_frames=30)
+    d = event_error_dict(EventError(n_clips=4, trophy=trophy, impact=impact),
+                         annotations_path="unused")
+    assert set(d) == {"available", "n_clips", "trophy", "impact"}
+    assert d["available"] is True
+    assert set(d["impact"]) == {
+        "n_clips", "n_locatable", "n_not_locatable", "tolerances",
+        "n_moved_by_tolerance", "move_rate_by_tolerance", "median_offset",
+        "iqr_offset", "max_abs_offset", "large_offset_frames",
+        "n_large_failures", "mean_offset"}
+    assert d["impact"]["n_large_failures"] == 1
+    # JSON keys are strings; both tolerances are present.
+    assert set(d["impact"]["move_rate_by_tolerance"]) == {"1", "3"}
+    assert d["impact"]["median_offset"] == 0.5   # robust to the |200| tail
+
+
+def _decidability(criterion, verdict, breakdown):
+    """A minimal Decidability record for the onset logic (only the fields the
+    onset reads are meaningful)."""
+    return Decidability(
+        criterion=criterion, sigma=0.0, mc_samples=0, seed=0, half_width=1.0,
+        thetas=[0.0], induced_sd=[0.0], ratio=[0.0], decidable=[True],
+        verdict=verdict, breakdown_theta=breakdown)
+
+
+def test_unreliable_onset_takes_first_ascending_sigma():
+    # A criterion decidable at sigma 2 but unreliable from sigma 4 onward:
+    # its onset must be the first sigma that fails, with that theta.
+    sweep = [
+        SigmaPoint(sigma=2.0, propagation=[],
+                   decidability=[_decidability("elbow_flexion", "decidable",
+                                               None)]),
+        SigmaPoint(sigma=4.0, propagation=[],
+                   decidability=[_decidability("elbow_flexion", "unreliable",
+                                               30.0)]),
+        SigmaPoint(sigma=6.0, propagation=[],
+                   decidability=[_decidability("elbow_flexion", "unreliable",
+                                               15.0)]),
+    ]
+    onset = _unreliable_onset(sweep)
+    assert onset["elbow_flexion"] == {"sigma": 4.0, "theta": 30.0}
+
+    # The onset is repeated on every row of that criterion in the CSV rows.
+    rows = decidability_rows(sweep)
+    assert all(r["onset_sigma"] == 4.0 for r in rows)
+    assert all(r["onset_theta"] == 30.0 for r in rows)

@@ -357,3 +357,94 @@ def write_figures(curves: List[ProjectionCurve], sweep: List[SigmaPoint],
             sweep, os.path.join(fig_dir, "decidability_map.png")),
     }
 
+
+# --------------------------------------------------------------------------
+# Orchestration.
+# --------------------------------------------------------------------------
+
+def build_assessment_report(config: PipelineConfig, annotations_dir: str,
+                            results_root: Optional[str] = None,
+                            out_dir: Optional[str] = None,
+                            make_figures: bool = True) -> Dict[str, Any]:
+    """Run the assessment modules and write every artifact into out_dir.
+
+    Returns the written paths plus the assembled MeasuredAssessment, so a
+    caller (the CLI, a test) can inspect the numbers without re-reading the
+    files. Figures are written unless make_figures is False.
+    """
+    if results_root is None:
+        results_root = config.results_root
+    if out_dir is None:
+        out_dir = os.path.join(results_root, DEFAULT_SUBDIR)
+    os.makedirs(out_dir, exist_ok=True)
+
+    # Run the modules. Projection is sigma-independent; the rest come from the
+    # measured assessment, which already sweeps sigma and reads the event CSV.
+    curves = projection_curves(config)
+    measured = measured_assessment(config, annotations_dir, results_root)
+    annotations_path = os.path.join(annotations_dir, "events.csv")
+
+    outputs: Dict[str, str] = {
+        "projection_curves": _write_csv(
+            os.path.join(out_dir, "projection_curves.csv"),
+            _PROJECTION_HEADER, projection_rows(curves)),
+        "noise_propagation": _write_csv(
+            os.path.join(out_dir, "noise_propagation.csv"),
+            _NOISE_HEADER, noise_rows(measured.sweep)),
+        "decidability": _write_csv(
+            os.path.join(out_dir, "decidability.csv"),
+            _DECIDABILITY_HEADER, decidability_rows(measured.sweep)),
+    }
+
+    event_path = os.path.join(out_dir, "event_error.json")
+    write_metadata(event_path, event_error_dict(
+        measured.event_error, annotations_path))
+    outputs["event_error"] = event_path
+
+    if make_figures:
+        outputs.update(write_figures(
+            curves, measured.sweep, os.path.join(out_dir, FIGURE_SUBDIR)))
+
+    # run_meta last, so its output manifest lists everything already written.
+    meta_path = os.path.join(out_dir, "run_meta.json")
+    write_metadata(meta_path, run_meta(config, outputs, out_dir))
+    outputs["run_meta"] = meta_path
+
+    return {"out_dir": out_dir, "outputs": outputs, "measured": measured}
+
+
+_DEFAULT_ANNOTATIONS = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    "data", "annotations")
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description="Assemble the feasibility assessment artifacts: run the "
+                    "projection, noise-propagation, decidability and event-"
+                    "error modules and write their tables into "
+                    "results/assessment/.")
+    parser.add_argument("--annotations", default=_DEFAULT_ANNOTATIONS,
+                        help="annotation directory holding events.csv "
+                             "(default: data/annotations)")
+    parser.add_argument("--results-root", default=None,
+                        help="pipeline results root (default: config)")
+    parser.add_argument("--out", default=None,
+                        help="output dir (default: <results>/assessment)")
+    parser.add_argument("--no-figures", dest="make_figures",
+                        action="store_false",
+                        help="write the CSV/JSON tables only, skip the figures")
+    args = parser.parse_args()
+
+    config = PipelineConfig()
+    report = build_assessment_report(
+        config, args.annotations, args.results_root, args.out,
+        make_figures=args.make_figures)
+
+    print(f"assessment written to {report['out_dir']}")
+    for name, path in report["outputs"].items():
+        print(f"  {name:<20} {os.path.basename(path)}")
+
+
+if __name__ == "__main__":
+    main()

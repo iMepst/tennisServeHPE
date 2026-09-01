@@ -34,3 +34,23 @@ def test_known_theta_foreshortening():
     expected = math.degrees(math.atan(math.tan(math.radians(25.0))
                                       * math.cos(math.radians(45.0))))
     assert trunk_projected_angle(25.0, 45.0) == pytest.approx(expected)
+
+
+def test_theta_zero_returns_true_angle():
+    # No foreshortening at theta = 0 for either projection model.
+    assert trunk_projected_angle(25.0, 0.0) == pytest.approx(25.0)
+    assert numeric_projected_angle(64.5, 0.0) == pytest.approx(64.5)
+
+
+def test_projection_reduces_angle_with_theta():
+    # A larger viewpoint tilt foreshortens the projected angle.
+    assert numeric_projected_angle(29.2, 45.0) < numeric_projected_angle(29.2, 0.0)
+
+
+def test_projection_curves_cover_four_criteria():
+    curves = projection_curves(PipelineConfig())
+    assert len(curves) == 4
+    for c in curves:
+        assert len(c.projected) == len(theta_values(PipelineConfig()))
+        # Each curve starts at its true angle (theta = 0).
+        assert c.projected[0] == pytest.approx(c.a_true)

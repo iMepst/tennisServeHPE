@@ -216,3 +216,80 @@ def run_meta(config: PipelineConfig, outputs: Dict[str, str],
         "notes": {"e4_definitional_mismatch": _E4_NOTE},
     }
 
+
+# --------------------------------------------------------------------------
+# Figures -- reproducible views of the same numbers the CSVs carry. Matplotlib
+# is imported lazily (Agg, headless) so a numbers-only run needs no display.
+# --------------------------------------------------------------------------
+
+FIGURE_SUBDIR = "figures"
+
+_CRITERION_LABEL = {
+    "trunk_inclination": "Trunk inclination",
+    "front_knee_flexion": "Front knee flexion",
+    "elbow_flexion": "Elbow flexion",
+    "shoulder_elevation": "Shoulder elevation",
+}
+
+
+def _dec_by_criterion(point: SigmaPoint) -> Dict[str, Any]:
+    """Index one sweep point's decidability records by criterion id."""
+    return {d.criterion: d for d in point.decidability}
+
+
+def _plot_projection_curves(curves: List[ProjectionCurve], path: str) -> str:
+    """E2: projected angle of every criterion over the theta sweep (one axes).
+
+    Each curve starts at its true angle (theta = 0) and foreshortens as the
+    viewpoint tilts; the trunk closed form and the numeric joints sit together.
+    """
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    fig, ax = plt.subplots(figsize=(7, 5))
+    for c in curves:
+        ax.plot(c.thetas, c.projected, marker="o", ms=3,
+                label=f"{_CRITERION_LABEL.get(c.criterion, c.criterion)} "
+                      f"({c.kind.replace('_', ' ')})")
+    ax.set_xlabel("viewpoint angle theta (deg)")
+    ax.set_ylabel("projected angle (deg)")
+    ax.set_title("Projection error over viewpoint")
+    ax.legend(fontsize=8)
+    fig.tight_layout()
+    fig.savefig(path, dpi=120)
+    plt.close(fig)
+    return path
+
+
+def _plot_spread_vs_theta(sweep: List[SigmaPoint], path: str) -> str:
+    """E1+E2: induced angular spread over theta, one panel per criterion.
+
+    A line per swept sigma, with the rule's band half-width drawn as the
+    dashed threshold: where a line crosses it the criterion turns unreliable,
+    which is exactly the decidability reading rendered as a curve.
+    """
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    criteria = [d.criterion for d in sweep[0].decidability]
+    fig, axes = plt.subplots(2, 2, figsize=(11, 8), sharex=True)
+    for ax, criterion in zip(axes.flat, criteria):
+        for point in sweep:
+            prop = {p.criterion: p for p in point.propagation}[criterion]
+            ax.plot(prop.thetas, prop.sd_deg, marker="o", ms=3,
+                    label=f"sigma = {point.sigma:g} px")
+        half = _dec_by_criterion(sweep[0])[criterion].half_width
+        ax.axhline(half, ls="--", color="k", lw=1.0,
+                   label="band half-width")
+        ax.set_title(_CRITERION_LABEL.get(criterion, criterion))
+        ax.set_xlabel("theta (deg)")
+        ax.set_ylabel("induced SD (deg)")
+        ax.legend(fontsize=7)
+    fig.suptitle("Induced angular spread over viewpoint and noise level")
+    fig.tight_layout()
+    fig.savefig(path, dpi=120)
+    plt.close(fig)
+    return path
+

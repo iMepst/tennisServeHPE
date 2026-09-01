@@ -144,17 +144,16 @@ def plot_angles_vs_bands(clips: List[Dict[str, Any]], path: str) -> str:
 
     order = list(_CRITERION_LABEL)
     fig, ax = plt.subplots(figsize=(9, 5))
+    lower_bound_x = []
     for x, criterion in enumerate(order):
         rule = _RULE_BY_ID[criterion]
-        if rule.band_kind == "lower_bound":
-            ax.add_patch(plt.Rectangle((x - 0.3, rule.lo), 0.6,
-                                       (rule.mean + 4 * rule.sd) - rule.lo,
-                                       color="tab:green", alpha=0.15, lw=0))
-        else:
+        if rule.band_kind != "lower_bound":
             ax.add_patch(plt.Rectangle((x - 0.3, rule.lo), 0.6,
                                        rule.hi - rule.lo,
                                        color="tab:green", alpha=0.15, lw=0))
-        ax.hlines(rule.mean, x - 0.3, x + 0.3, color="tab:green", lw=1.0)
+            ax.hlines(rule.mean, x - 0.3, x + 0.3, color="tab:green", lw=1.0)
+        else:
+            lower_bound_x.append((x, rule))
         for clip in clips:
             by_crit = {i["criterion"]: i for i in clip.get("indicators", [])}
             ind = by_crit.get(criterion)
@@ -162,6 +161,16 @@ def plot_angles_vs_bands(clips: List[Dict[str, Any]], path: str) -> str:
                 continue
             color = "tab:blue" if ind["status"] == "inside" else "tab:red"
             ax.plot(x, ind["angle"], "o", color=color, alpha=0.8)
+    # One-sided (lower-bound) criteria: everything above the threshold is
+    # compliant, so shade upward from the threshold to the top of the plot
+    # area and mark only the lower edge, with a distinct solid line that
+    # sets it apart from the two-sided bands' edges.
+    top = ax.get_ylim()[1]
+    ax.autoscale(False)
+    for x, rule in lower_bound_x:
+        ax.add_patch(plt.Rectangle((x - 0.3, rule.lo), 0.6, top - rule.lo,
+                                   color="tab:green", alpha=0.15, lw=0))
+        ax.hlines(rule.lo, x - 0.3, x + 0.3, color="tab:green", lw=2.0)
     ax.set_xticks(range(len(order)))
     ax.set_xticklabels([_CRITERION_LABEL[c] for c in order])
     ax.set_ylabel("angle (deg)")

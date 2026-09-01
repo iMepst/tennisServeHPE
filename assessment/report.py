@@ -367,16 +367,19 @@ def _plot_decidability_map(sweep: List[SigmaPoint], path: str) -> str:
         grid = np.array([
             _dec_by_criterion(point)[criterion].ratio for point in sweep])
         mesh = ax.pcolormesh(thetas, sigmas, grid, shading="nearest",
-                             cmap="RdYlGn_r", vmin=0.0, vmax=2.0)
-        # The reliability boundary: induced spread equal to the half-width.
-        if len(thetas) > 1 and len(sigmas) > 1:
-            ax.contour(thetas, sigmas, grid, levels=[1.0], colors="k",
-                       linewidths=1.2)
+                             cmap="RdYlGn_r", vmin=_DECIDABILITY_VMIN,
+                             vmax=_DECIDABILITY_VMAX)
+        # The reliability boundary at ratio = 1.0, drawn along the cell grid
+        # (not an interpolated diagonal) so it reads as a clean threshold: the
+        # edges separating decidable cells from unreliable ones. Absent where
+        # no cell crosses 1.0.
+        _draw_threshold_boundary(ax, thetas, sigmas, grid, 1.0)
         crit_onset = onset.get(criterion)
         title = _CRITERION_LABEL.get(criterion, criterion)
         if crit_onset and crit_onset["theta"] is not None:
-            ax.plot(crit_onset["theta"], crit_onset["sigma"], marker="*",
-                    ms=16, color="black")
+            ax.plot(crit_onset["theta"], crit_onset["sigma"], marker="o",
+                    ms=9, markerfacecolor="white", markeredgecolor="black",
+                    markeredgewidth=1.4, clip_on=True, zorder=5)
             title += (f"  (unreliable from sigma = {crit_onset['sigma']:g} px, "
                       f"theta = {crit_onset['theta']:g} deg)")
         else:

@@ -293,3 +293,67 @@ def _plot_spread_vs_theta(sweep: List[SigmaPoint], path: str) -> str:
     plt.close(fig)
     return path
 
+
+def _plot_decidability_map(sweep: List[SigmaPoint], path: str) -> str:
+    """The summary figure: per-criterion decidability over the (theta, sigma)
+    grid, so the headline (sigma, theta) onset reads at a glance.
+
+    Each panel colours the ratio induced_SD / band half-width (green below 1,
+    red above), draws the reliability boundary at ratio = 1, and marks the
+    onset -- the first (sigma, theta) at which the criterion turns unreliable,
+    the Q3 reading. Panels with no marker stay decidable across the whole grid.
+    """
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    import numpy as np
+
+    onset = _unreliable_onset(sweep)
+    sigmas = [p.sigma for p in sweep]
+    thetas = sweep[0].decidability[0].thetas
+    criteria = [d.criterion for d in sweep[0].decidability]
+
+    fig, axes = plt.subplots(2, 2, figsize=(11, 8))
+    for ax, criterion in zip(axes.flat, criteria):
+        # Ratio grid: rows are sigma (ascending), columns theta.
+        grid = np.array([
+            _dec_by_criterion(point)[criterion].ratio for point in sweep])
+        mesh = ax.pcolormesh(thetas, sigmas, grid, shading="nearest",
+                             cmap="RdYlGn_r", vmin=0.0, vmax=2.0)
+        # The reliability boundary: induced spread equal to the half-width.
+        if len(thetas) > 1 and len(sigmas) > 1:
+            ax.contour(thetas, sigmas, grid, levels=[1.0], colors="k",
+                       linewidths=1.2)
+        crit_onset = onset.get(criterion)
+        title = _CRITERION_LABEL.get(criterion, criterion)
+        if crit_onset and crit_onset["theta"] is not None:
+            ax.plot(crit_onset["theta"], crit_onset["sigma"], marker="*",
+                    ms=16, color="black")
+            title += (f"  (unreliable from sigma = {crit_onset['sigma']:g} px, "
+                      f"theta = {crit_onset['theta']:g} deg)")
+        else:
+            title += "  (decidable across grid)"
+        ax.set_title(title, fontsize=9)
+        ax.set_xlabel("theta (deg)")
+        ax.set_ylabel("sigma (px)")
+        fig.colorbar(mesh, ax=ax, label="induced SD / half-width")
+    fig.suptitle("Decidability over viewpoint and noise level")
+    fig.tight_layout()
+    fig.savefig(path, dpi=120)
+    plt.close(fig)
+    return path
+
+
+def write_figures(curves: List[ProjectionCurve], sweep: List[SigmaPoint],
+                  fig_dir: str) -> Dict[str, str]:
+    """Write the three assessment figures into fig_dir, returning their paths."""
+    os.makedirs(fig_dir, exist_ok=True)
+    return {
+        "projection_figure": _plot_projection_curves(
+            curves, os.path.join(fig_dir, "projection_curves.png")),
+        "spread_figure": _plot_spread_vs_theta(
+            sweep, os.path.join(fig_dir, "spread_vs_theta.png")),
+        "decidability_figure": _plot_decidability_map(
+            sweep, os.path.join(fig_dir, "decidability_map.png")),
+    }
+

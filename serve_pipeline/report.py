@@ -34,6 +34,12 @@ _CRITERION_LABEL = {
 }
 _RULE_BY_ID: Dict[str, Rule] = {r.id: r for r in RULES}
 
+# Presentation-only cap for the open (lower-bound) knee zone: an anatomical
+# plausibility bound (heel-to-buttock maximum flexion), not a decision
+# threshold. It bounds the shaded fill so it does not run to the shoulder-
+# driven axis top; the rule stays one-sided with no upper bound.
+KNEE_PLAUSIBILITY_CAP_DEG = 150.0
+
 
 def find_result_jsons(results_root: str) -> List[str]:
     """Every results/<clip>/result.json, sorted, skipping the report dir."""

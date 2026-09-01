@@ -83,3 +83,54 @@ def noise_rows(sweep: List[SigmaPoint]) -> List[Dict[str, Any]]:
                     "sigma": prop.sigma, "mc_samples": prop.mc_samples,
                     "seed": prop.seed, "theta": theta, "sd_deg": sd})
     return rows
+
+
+_DECIDABILITY_HEADER = ["criterion", "sigma", "mc_samples", "seed", "theta",
+                        "induced_sd", "half_width", "ratio", "decidable",
+                        "verdict", "onset_sigma", "onset_theta"]
+
+
+def _unreliable_onset(sweep: List[SigmaPoint]
+                      ) -> Dict[str, Dict[str, Optional[float]]]:
+    """First (sigma, theta) at which each criterion turns unreliable.
+
+    Walks the sigma band in ascending order (the sweep order) and takes the
+    first sigma whose verdict is "unreliable"; the theta is that verdict's
+    breakdown viewpoint. This pair is the Q3 reading -- the operating point at
+    which the criterion stops separating sound from faulty. Both None for a
+    criterion that stays decidable across the whole grid.
+    """
+    onset: Dict[str, Dict[str, Optional[float]]] = {}
+    for point in sweep:
+        for d in point.decidability:
+            if d.criterion in onset:
+                continue
+            if d.verdict == "unreliable":
+                onset[d.criterion] = {"sigma": point.sigma,
+                                      "theta": d.breakdown_theta}
+    return onset
+
+
+def decidability_rows(sweep: List[SigmaPoint]) -> List[Dict[str, Any]]:
+    """One row per (criterion, sigma, theta): induced SD held against the band.
+
+    Each row carries the induced SD, the rule's band half-width, their ratio
+    and the per-theta decidable flag; the onset columns repeat the criterion's
+    first-unreliable (sigma, theta) so the Q3 reading is on every row.
+    """
+    onset = _unreliable_onset(sweep)
+    rows: List[Dict[str, Any]] = []
+    for point in sweep:
+        for d in point.decidability:
+            crit_onset = onset.get(d.criterion, {})
+            for theta, sd, ratio, ok in zip(
+                    d.thetas, d.induced_sd, d.ratio, d.decidable):
+                rows.append({
+                    "criterion": d.criterion, "sigma": d.sigma,
+                    "mc_samples": d.mc_samples, "seed": d.seed, "theta": theta,
+                    "induced_sd": sd, "half_width": d.half_width,
+                    "ratio": ratio, "decidable": ok, "verdict": d.verdict,
+                    "onset_sigma": crit_onset.get("sigma"),
+                    "onset_theta": crit_onset.get("theta")})
+    return rows
+

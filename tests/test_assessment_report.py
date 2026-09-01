@@ -76,3 +76,52 @@ def test_build_report_writes_all_artifacts_without_events(tmp_path):
     assert _header(report["outputs"]["noise_propagation"]) == _NOISE_HEADER
     assert _header(report["outputs"]["decidability"]) == _DECIDABILITY_HEADER
 
+
+def test_removed_artifacts_are_not_written(tmp_path):
+    # The methodology revision dropped these two; the reporter must never emit
+    # them, in the out dir or the figures subdir.
+    config = _fast_config()
+    out_dir = str(tmp_path / "assessment")
+    build_assessment_report(config, annotations_dir=str(tmp_path / "none"),
+                            results_root=str(tmp_path / "results"),
+                            out_dir=out_dir, make_figures=True)
+    written = set()
+    for _root, _dirs, files in os.walk(out_dir):
+        written |= set(files)
+    assert "sigma_estimate.json" not in written
+    assert "decision_instability.csv" not in written
+
+
+def test_runs_headless(tmp_path):
+    # Building the figures must not need a display: the Agg backend is selected.
+    import matplotlib
+    config = _fast_config()
+    build_assessment_report(config, annotations_dir=str(tmp_path / "none"),
+                            results_root=str(tmp_path / "results"),
+                            out_dir=str(tmp_path / "assessment"),
+                            make_figures=True)
+    assert matplotlib.get_backend().lower() == "agg"
+
+
+def test_build_report_writes_figures(tmp_path):
+    config = _fast_config()
+    out_dir = str(tmp_path / "assessment")
+    report = build_assessment_report(
+        config, annotations_dir=str(tmp_path / "missing"),
+        results_root=str(tmp_path / "results"), out_dir=out_dir,
+        make_figures=True)
+
+    fig_dir = os.path.join(out_dir, "figures")
+    figs = set(os.listdir(fig_dir))
+    assert figs == {"projection_curves.png", "spread_vs_theta.png",
+                    "decidability_map.png"}
+    # The figure paths are logged in the report outputs and reproducible.
+    assert "decidability_figure" in report["outputs"]
+    for name in ("projection_curves.png", "spread_vs_theta.png",
+                 "decidability_map.png"):
+        assert os.path.getsize(os.path.join(fig_dir, name)) > 0
+    # Missing events.csv: the placeholder is written, yet every figure is
+    # still produced (the figures do not depend on E3).
+    ev = _read_json(os.path.join(out_dir, "event_error.json"))
+    assert ev["placeholder"] is True
+

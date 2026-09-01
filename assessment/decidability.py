@@ -53,3 +53,25 @@ def assess_series(induced_sd: List[float], thetas: List[float],
     verdict = "decidable" if all(decidable) else "unreliable"
     return ratio, decidable, breakdown, verdict
 
+
+@dataclass
+class Decidability:
+    """Per-criterion decidability across the theta sweep at a fixed sigma.
+
+    ratio[i] = induced_sd[i] / half_width and decidable[i] are the values at
+    thetas[i]; verdict holds across the whole range and breakdown_theta is
+    the first viewpoint that reaches the half-width (None if none does).
+    """
+
+    criterion: str
+    sigma: float
+    mc_samples: int
+    seed: int
+    half_width: float
+    thetas: List[float]
+    induced_sd: List[float]
+    ratio: List[float]
+    decidable: List[bool]
+    verdict: str
+    breakdown_theta: Optional[float]
+

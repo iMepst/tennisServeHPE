@@ -231,6 +231,13 @@ _CRITERION_LABEL = {
     "shoulder_elevation": "Shoulder elevation",
 }
 
+# Colour-scale bounds for the decidability heatmaps, shared across panels so
+# they stay comparable. The upper limit sits just above the largest ratio the
+# grid reaches (~1.014), so the full colour range spans the values that occur
+# and the contrast around the ratio = 1 boundary is visible.
+_DECIDABILITY_VMIN = 0.0
+_DECIDABILITY_VMAX = 1.1
+
 
 def _dec_by_criterion(point: SigmaPoint) -> Dict[str, Any]:
     """Index one sweep point's decidability records by criterion id."""
@@ -292,6 +299,47 @@ def _plot_spread_vs_theta(sweep: List[SigmaPoint], path: str) -> str:
     fig.savefig(path, dpi=120)
     plt.close(fig)
     return path
+
+
+def _cell_edges(centers):
+    """Cell-boundary coordinates for centers, matching pcolormesh 'nearest':
+    midpoints between centers, half a step beyond at each end."""
+    import numpy as np
+    c = np.asarray(centers, dtype=float)
+    if c.size == 1:
+        return np.array([c[0] - 0.5, c[0] + 0.5])
+    mid = (c[:-1] + c[1:]) / 2.0
+    return np.concatenate([[c[0] - (mid[0] - c[0])], mid,
+                           [c[-1] + (c[-1] - mid[-1])]])
+
+
+def _draw_threshold_boundary(ax, thetas, sigmas, grid, level) -> None:
+    """Outline where grid crosses level, along the pcolormesh cell edges.
+
+    Draws only the interior edges separating a below-level cell from an
+    at/above-level one, giving a crisp stair-step boundary that follows the
+    grid instead of an interpolated diagonal. Nothing is drawn when no cell
+    reaches level.
+    """
+    import numpy as np
+    g = np.asarray(grid, dtype=float)
+    if g.shape[0] < 2 and g.shape[1] < 2:
+        return
+    over = g >= level
+    xe = _cell_edges(thetas)
+    ye = _cell_edges(sigmas)
+    kw = dict(color="k", lw=1.1, zorder=4)
+    rows, cols = g.shape
+    # Vertical edges: between horizontally adjacent cells that straddle level.
+    for j in range(rows):
+        for i in range(cols - 1):
+            if over[j, i] != over[j, i + 1]:
+                ax.plot([xe[i + 1], xe[i + 1]], [ye[j], ye[j + 1]], **kw)
+    # Horizontal edges: between vertically adjacent cells that straddle level.
+    for j in range(rows - 1):
+        for i in range(cols):
+            if over[j, i] != over[j + 1, i]:
+                ax.plot([xe[i], xe[i + 1]], [ye[j + 1], ye[j + 1]], **kw)
 
 
 def _plot_decidability_map(sweep: List[SigmaPoint], path: str) -> str:

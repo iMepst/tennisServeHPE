@@ -134,3 +134,85 @@ def decidability_rows(sweep: List[SigmaPoint]) -> List[Dict[str, Any]]:
                     "onset_theta": crit_onset.get("theta")})
     return rows
 
+
+# --------------------------------------------------------------------------
+# JSON writers -- the empirical event error and the run parameters.
+# --------------------------------------------------------------------------
+
+def _event_type_dict(e: EventTypeError) -> Dict[str, Any]:
+    """Serialise one event type, robust statistics first (task 1b ordering)."""
+    return {
+        "n_clips": e.n_clips,
+        "n_locatable": e.n_locatable,
+        "n_not_locatable": e.n_not_locatable,
+        "tolerances": list(e.tolerances),
+        "n_moved_by_tolerance": {str(t): e.n_moved_by_tolerance[t]
+                                 for t in e.tolerances},
+        "move_rate_by_tolerance": {str(t): e.move_rate_by_tolerance[t]
+                                   for t in e.tolerances},
+        "median_offset": e.median_offset,
+        "iqr_offset": e.iqr_offset,
+        "max_abs_offset": e.max_abs_offset,
+        "large_offset_frames": e.large_offset_frames,
+        "n_large_failures": e.n_large_failures,
+        "mean_offset": e.mean_offset,
+    }
+
+
+def event_error_dict(event_error: Optional[EventError],
+                     annotations_path: str) -> Dict[str, Any]:
+    """The E3 record, or a clearly-marked placeholder when no CSV was found.
+
+    ``available`` is the flag the Results chapter keys on: False means the
+    event error was not measured (no events.csv), never that it was zero.
+    """
+    if event_error is None:
+        # No events.csv: mark the record as a placeholder and leave every rate
+        # unset. E3 is the one input that can be absent (sigma is always the
+        # swept band), and an absent rate is never fabricated as zero.
+        return {"available": False, "placeholder": True,
+                "note": f"no event annotation at {annotations_path}; "
+                        "E3 not measured"}
+    return {"available": True, "n_clips": event_error.n_clips,
+            "trophy": _event_type_dict(event_error.trophy),
+            "impact": _event_type_dict(event_error.impact)}
+
+
+# E4 (definitional mismatch: surface landmarks vs the joint centres behind the
+# reference values) is out of scope by construction -- quantifying it needs
+# joint-centre ground truth the study does not have. It is recorded here as a
+# documented, unquantified offset so the artifacts show it was set aside on
+# purpose, never simply overlooked; it is never assigned a number.
+_E4_NOTE = (
+    "E4 definitional mismatch is not quantified by design: the gap between "
+    "surface landmarks and the joint centres behind the reference values "
+    "needs joint-centre ground truth this study does not have. It is left as "
+    "a documented, unquantified offset (worst on trunk inclination), never "
+    "simulated and never assigned a number.")
+
+
+def run_meta(config: PipelineConfig, outputs: Dict[str, str],
+             out_dir: str) -> Dict[str, Any]:
+    """Every parameter the run used, so a later run reproduces it exactly.
+
+    Output paths are logged relative to out_dir (figures sit in a subdir), and
+    the E4 note records the one error source deliberately left unquantified.
+    """
+    from assessment.projection import theta_values
+    return {
+        "theta_range": list(config.theta_range),
+        "theta_step": config.theta_step,
+        "thetas": theta_values(config),
+        "sigma": config.sigma,
+        "sigma_sweep": list(config.sigma_sweep),
+        "mc_samples": config.mc_samples,
+        "seed": config.seed,
+        "reference_stature_px": REP_STATURE_PX,
+        "event_tolerances_frames": list(config.event_tolerances_frames),
+        "event_large_offset_frames": config.event_large_offset_frames,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "outputs": {name: os.path.relpath(path, out_dir)
+                    for name, path in outputs.items()},
+        "notes": {"e4_definitional_mismatch": _E4_NOTE},
+    }
+

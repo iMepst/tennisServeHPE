@@ -125,3 +125,55 @@ def test_build_report_writes_figures(tmp_path):
     ev = _read_json(os.path.join(out_dir, "event_error.json"))
     assert ev["placeholder"] is True
 
+
+def test_reproducible_numbers_across_runs(tmp_path):
+    # Same seed and parameters -> byte-identical tables on a rerun.
+    config = _fast_config()
+    a = build_assessment_report(config, annotations_dir=str(tmp_path / "none"),
+                                results_root=str(tmp_path / "r"),
+                                out_dir=str(tmp_path / "a"), make_figures=False)
+    b = build_assessment_report(config, annotations_dir=str(tmp_path / "none"),
+                                results_root=str(tmp_path / "r"),
+                                out_dir=str(tmp_path / "b"), make_figures=False)
+    for key in ("projection_curves", "noise_propagation", "decidability"):
+        with open(a["outputs"][key]) as fa, open(b["outputs"][key]) as fb:
+            assert fa.read() == fb.read()
+
+
+def test_event_error_placeholder_when_missing(tmp_path):
+    config = _fast_config()
+    out_dir = str(tmp_path / "assessment")
+    build_assessment_report(config, annotations_dir=str(tmp_path / "none"),
+                            results_root=str(tmp_path / "results"),
+                            out_dir=out_dir, make_figures=False)
+    ev = _read_json(os.path.join(out_dir, "event_error.json"))
+    # A missing CSV must read as a clearly-marked placeholder, never a zero
+    # rate: no move-rate fields at all, just the flags and the note.
+    assert ev["available"] is False
+    assert ev["placeholder"] is True
+    assert "note" in ev
+    assert "trophy" not in ev and "impact" not in ev
+
+
+def test_run_meta_logs_every_parameter(tmp_path):
+    config = _fast_config()
+    out_dir = str(tmp_path / "assessment")
+    build_assessment_report(config, annotations_dir=str(tmp_path / "none"),
+                            results_root=str(tmp_path / "results"),
+                            out_dir=out_dir, make_figures=False)
+    meta = _read_json(os.path.join(out_dir, "run_meta.json"))
+    assert meta["sigma_sweep"] == [2.0, 4.0]
+    assert meta["mc_samples"] == 200
+    assert meta["seed"] == config.seed
+    assert meta["theta_range"] == [0.0, 45.0]
+    assert meta["event_tolerances_frames"] == list(
+        config.event_tolerances_frames)
+    # Exact key set, so a dropped parameter is caught here.
+    assert set(meta) == {
+        "theta_range", "theta_step", "thetas", "sigma", "sigma_sweep",
+        "mc_samples", "seed", "reference_stature_px",
+        "event_tolerances_frames", "event_large_offset_frames", "timestamp",
+        "outputs", "notes"}
+    # E4 is recorded as deliberately unquantified, never given a number.
+    assert "e4_definitional_mismatch" in meta["notes"]
+

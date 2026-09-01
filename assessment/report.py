@@ -62,3 +62,24 @@ def projection_rows(curves: List[ProjectionCurve]) -> List[Dict[str, Any]]:
                 "criterion": c.criterion, "kind": c.kind, "a_true": c.a_true,
                 "theta": theta, "projected_angle": projected})
     return rows
+
+
+_NOISE_HEADER = ["criterion", "a_true", "sigma", "mc_samples", "seed",
+                 "theta", "sd_deg"]
+
+
+def noise_rows(sweep: List[SigmaPoint]) -> List[Dict[str, Any]]:
+    """One row per (criterion, sigma, theta): the Monte-Carlo induced SD.
+
+    The whole sigma band is unrolled, so the induced spread is available as a
+    function of both viewpoint and noise level.
+    """
+    rows: List[Dict[str, Any]] = []
+    for point in sweep:
+        for prop in point.propagation:
+            for theta, sd in zip(prop.thetas, prop.sd_deg):
+                rows.append({
+                    "criterion": prop.criterion, "a_true": prop.a_true,
+                    "sigma": prop.sigma, "mc_samples": prop.mc_samples,
+                    "seed": prop.seed, "theta": theta, "sd_deg": sd})
+    return rows

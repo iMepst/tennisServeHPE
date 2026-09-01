@@ -75,3 +75,48 @@ class Decidability:
     verdict: str
     breakdown_theta: Optional[float]
 
+
+def decidability(config: PipelineConfig,
+                 sigma: Optional[float] = None) -> List[Decidability]:
+    """Decidability verdict for each criterion over the theta sweep.
+
+    Draws the induced spread from propagation and holds each induced SD
+    against the rule's band half-width. sigma defaults to config.sigma but
+    stays a parameter so each value in the swept band (config.sigma_sweep) is
+    assessed in turn -- sigma is card-informed and swept, never measured.
+    """
+    if sigma is None:
+        sigma = config.sigma
+    props = {p.criterion: p for p in noise_propagation(config, sigma)}
+    results: List[Decidability] = []
+    for rule in RULES:
+        prop = props[rule.id]
+        half = band_half_width(rule)
+        ratio, decidable, breakdown, verdict = assess_series(
+            prop.sd_deg, prop.thetas, half)
+        results.append(Decidability(
+            criterion=rule.id, sigma=sigma, mc_samples=config.mc_samples,
+            seed=config.seed, half_width=half,
+            thetas=prop.thetas, induced_sd=prop.sd_deg, ratio=ratio,
+            decidable=decidable, verdict=verdict, breakdown_theta=breakdown))
+    return results
+
+
+def _print_sanity_table(config: PipelineConfig) -> None:
+    """Print the induced-SD / half-width ratio per criterion over theta,
+    with the verdict alongside. A quick eye check, not an output artifact:
+    ratio < 1 means decidable.
+    """
+    results = decidability(config)
+    print(f"induced SD / band half-width, sigma = {config.sigma} px "
+          f"(decidable while < 1)")
+    header = "criterion".ljust(20) + "".join(
+        f"{th:7.0f}" for th in results[0].thetas) + "   verdict"
+    print(header)
+    for d in results:
+        row = d.criterion.ljust(20) + "".join(f"{r:7.2f}" for r in d.ratio)
+        print(f"{row}   {d.verdict}")
+
+
+if __name__ == "__main__":
+    _print_sanity_table(PipelineConfig())

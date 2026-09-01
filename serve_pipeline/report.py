@@ -135,7 +135,9 @@ def key_frame_candidates(clips: List[Dict[str, Any]],
             out.append(png)
     return out
 
-def plot_angles_vs_bands(clips: List[Dict[str, Any]], path: str) -> str:
+def plot_angles_vs_bands(clips: List[Dict[str, Any]], path: str,
+                         knee_cap_deg: float = KNEE_PLAUSIBILITY_CAP_DEG
+                         ) -> str:
     """Measured angle per clip against each criterion's band (one figure).
 
     Same matplotlib-Agg pattern as plotting.py. Each criterion is a column;
@@ -168,15 +170,19 @@ def plot_angles_vs_bands(clips: List[Dict[str, Any]], path: str) -> str:
             color = "tab:blue" if ind["status"] == "inside" else "tab:red"
             ax.plot(x, ind["angle"], "o", color=color, alpha=0.8)
     # One-sided (lower-bound) criteria: everything above the threshold is
-    # compliant, so shade upward from the threshold to the top of the plot
-    # area and mark only the lower edge, with a distinct solid line that
-    # sets it apart from the two-sided bands' edges.
-    top = ax.get_ylim()[1]
-    ax.autoscale(False)
+    # compliant, so shade upward from the threshold. The solid lower edge is
+    # the only decision line; the fill is capped at an anatomical
+    # plausibility bound (dashed, presentation only) rather than running to
+    # the shoulder-driven axis top. The rule itself stays one-sided. The cap
+    # sits below the shoulder-driven axis top, so the shared range is
+    # unchanged.
     for x, rule in lower_bound_x:
-        ax.add_patch(plt.Rectangle((x - 0.3, rule.lo), 0.6, top - rule.lo,
+        ax.add_patch(plt.Rectangle((x - 0.3, rule.lo), 0.6,
+                                   knee_cap_deg - rule.lo,
                                    color="tab:green", alpha=0.15, lw=0))
         ax.hlines(rule.lo, x - 0.3, x + 0.3, color="tab:green", lw=2.0)
+        ax.hlines(knee_cap_deg, x - 0.3, x + 0.3, color="tab:green",
+                  lw=1.0, ls="--")
     ax.set_xticks(range(len(order)))
     ax.set_xticklabels([_CRITERION_LABEL[c] for c in order])
     ax.set_ylabel("angle (deg)")

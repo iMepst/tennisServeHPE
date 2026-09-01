@@ -50,3 +50,31 @@ class MeasuredAssessment:
     event_error: Optional[EventError]
     sweep: List[SigmaPoint]
 
+
+def measured_assessment(config: PipelineConfig, annotations_dir: str,
+                        results_root: Optional[str] = None
+                        ) -> MeasuredAssessment:
+    """Gather the assessment from the annotation directory.
+
+    Reads ``events.csv`` for the event rate (E3), then runs the synthetic core
+    over config.sigma_sweep. The annotation directory now supplies only the
+    event annotation; sigma comes from the config sweep, not from the clips.
+    """
+    if results_root is None:
+        results_root = config.results_root
+
+    events_path = os.path.join(annotations_dir, "events.csv")
+    event_error = (estimate_event_error(
+        read_event_annotations(events_path), results_root)
+        if os.path.isfile(events_path) else None)
+
+    sweep = [
+        SigmaPoint(sigma=s,
+                   propagation=noise_propagation(config, s),
+                   decidability=decidability(config, s))
+        for s in config.sigma_sweep]
+
+    return MeasuredAssessment(
+        sigma_sweep=list(config.sigma_sweep),
+        event_error=event_error, sweep=sweep)
+

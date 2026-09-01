@@ -37,3 +37,42 @@ def _read_json(path):
     with open(path) as f:
         return json.load(f)
 
+
+def test_build_report_writes_all_artifacts_without_events(tmp_path):
+    config = _fast_config()
+    out_dir = str(tmp_path / "assessment")
+    report = build_assessment_report(
+        config, annotations_dir=str(tmp_path / "missing"),
+        results_root=str(tmp_path / "results"), out_dir=out_dir,
+        make_figures=False)
+
+    # The five tables are the removed-methodology-safe set: no
+    # sigma_estimate.json, no decision_instability.csv.
+    names = set(os.listdir(out_dir))
+    assert names == {"projection_curves.csv", "noise_propagation.csv",
+                     "decidability.csv", "event_error.json", "run_meta.json"}
+
+    n_crit = len(RULES)
+    n_theta = 4          # 0, 15, 30, 45
+    n_sigma = 2          # (2.0, 4.0)
+
+    proj = _read_csv(report["outputs"]["projection_curves"])
+    assert len(proj) == n_crit * n_theta
+    # Trunk is the closed-form criterion; the joints are numeric.
+    kinds = {r["criterion"]: r["kind"] for r in proj}
+    assert kinds["trunk_inclination"] == "closed_form"
+    assert kinds["elbow_flexion"] == "numeric"
+
+    noise = _read_csv(report["outputs"]["noise_propagation"])
+    assert len(noise) == n_crit * n_theta * n_sigma
+    assert {r["sigma"] for r in noise} == {"2.0", "4.0"}
+
+    dec = _read_csv(report["outputs"]["decidability"])
+    assert len(dec) == n_crit * n_theta * n_sigma
+    assert {r["verdict"] for r in dec} <= {"decidable", "unreliable"}
+
+    # Exact column headers, so a schema change is caught here.
+    assert _header(report["outputs"]["projection_curves"]) == _PROJECTION_HEADER
+    assert _header(report["outputs"]["noise_propagation"]) == _NOISE_HEADER
+    assert _header(report["outputs"]["decidability"]) == _DECIDABILITY_HEADER
+

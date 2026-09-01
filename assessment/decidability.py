@@ -34,3 +34,22 @@ def band_half_width(rule: Rule) -> float:
     spread.
     """
     return THRESHOLD_FACTOR * rule.sd
+
+
+def assess_series(induced_sd: List[float], thetas: List[float],
+                  half_width: float) -> Tuple[List[float], List[bool],
+                                              Optional[float], str]:
+    """Turn an induced-SD series into a decidability verdict.
+
+    Returns the per-theta ratio (induced SD / half-width), the per-theta
+    decidable flags (True while the spread stays below the half-width), the
+    breakdown theta (first viewpoint where the spread reaches the
+    half-width, or None if it never does), and the overall verdict --
+    "decidable" only if it holds across the whole range.
+    """
+    ratio = [sd / half_width for sd in induced_sd]
+    decidable = [sd < half_width for sd in induced_sd]
+    breakdown = next((th for th, ok in zip(thetas, decidable) if not ok), None)
+    verdict = "decidable" if all(decidable) else "unreliable"
+    return ratio, decidable, breakdown, verdict
+

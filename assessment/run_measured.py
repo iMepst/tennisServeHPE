@@ -78,3 +78,52 @@ def measured_assessment(config: PipelineConfig, annotations_dir: str,
         sigma_sweep=list(config.sigma_sweep),
         event_error=event_error, sweep=sweep)
 
+
+def _print_sigma_sweep(m: MeasuredAssessment) -> None:
+    band = ", ".join(f"{s:g}" for s in m.sigma_sweep)
+    print(f"sigma (E1): swept over [{band}] px  "
+          f"[from the estimator's reported accuracy, not measured on these "
+          f"clips; reported as a sensitivity range]")
+
+
+def _print_event_error(m: MeasuredAssessment) -> None:
+    if m.event_error is None:
+        print("event error (E3): no event annotation found")
+        return
+    print(f"event error (E3): {m.event_error.n_clips} clips")
+    for e in (m.event_error.trophy, m.event_error.impact):
+        rates = "  ".join(
+            f">{t}f {e.move_rate_by_tolerance[t]:.0%}" for t in e.tolerances)
+        print(f"    {e.event:<8} move rate  {rates}  "
+              f"({e.n_not_locatable} not locatable)")
+        if e.n_locatable:
+            print(f"             offset median {e.median_offset:+.2f}, "
+                  f"IQR {e.iqr_offset:.1f}, max |.| {e.max_abs_offset:.0f}, "
+                  f"{e.n_large_failures} large (>= {e.large_offset_frames}f), "
+                  f"mean {e.mean_offset:+.2f} frames")
+
+
+def _print_core(m: MeasuredAssessment) -> None:
+    """Per-criterion induced spread and decidability verdict at each swept
+    sigma."""
+    thetas = m.sweep[0].decidability[0].thetas
+    for point in m.sweep:
+        print(f"\nper-criterion induced SD (deg) over theta, sigma = "
+              f"{point.sigma:g} px")
+        header = "criterion".ljust(20) \
+            + "".join(f"{th:7.0f}" for th in thetas) + "   verdict"
+        print(header)
+        for d in point.decidability:
+            row = d.criterion.ljust(20) + "".join(
+                f"{sd:7.2f}" for sd in d.induced_sd)
+            print(f"{row}   {d.verdict}")
+    print("\n(decidable while induced SD < band half-width; the sigma at "
+          "which each criterion turns unreliable is the Q3 reading)")
+
+
+def print_report(m: MeasuredAssessment) -> None:
+    _print_sigma_sweep(m)
+    print()
+    _print_event_error(m)
+    _print_core(m)
+

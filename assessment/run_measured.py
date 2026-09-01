@@ -127,3 +127,23 @@ def print_report(m: MeasuredAssessment) -> None:
     _print_event_error(m)
     _print_core(m)
 
+
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description="Produce the feasibility result: event rate (E3) from the "
+                    "manual frame check, then the synthetic spread / "
+                    "decidability table over the sigma sweep (E1).")
+    parser.add_argument("--annotations", default=_DEFAULT_ANNOTATIONS,
+                        help="annotation directory holding events.csv "
+                             "(default: data/annotations)")
+    parser.add_argument("--results-root", default=None,
+                        help="pipeline results root (default: config)")
+    args = parser.parse_args()
+
+    config = PipelineConfig()
+    m = measured_assessment(config, args.annotations, args.results_root)
+    print_report(m)
+
+
+if __name__ == "__main__":
+    main()

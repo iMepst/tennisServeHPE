@@ -261,7 +261,7 @@ def _plot_projection_curves(curves: List[ProjectionCurve], path: str) -> str:
                       f"({c.kind.replace('_', ' ')})")
     ax.set_xlabel("viewpoint angle theta (deg)")
     ax.set_ylabel("projected angle (deg)")
-    ax.set_title("Projection error over viewpoint")
+    ax.set_title("Projected angle over viewpoint")
     ax.legend(fontsize=8)
     fig.tight_layout()
     fig.savefig(path, dpi=120)
@@ -272,9 +272,7 @@ def _plot_projection_curves(curves: List[ProjectionCurve], path: str) -> str:
 def _plot_spread_vs_theta(sweep: List[SigmaPoint], path: str) -> str:
     """E1+E2: induced angular spread over theta, one panel per criterion.
 
-    A line per swept sigma, with the rule's band half-width drawn as the
-    dashed threshold: where a line crosses it the criterion turns unreliable,
-    which is exactly the decidability reading rendered as a curve.
+    A line per swept sigma.
     """
     import matplotlib
     matplotlib.use("Agg")
@@ -287,9 +285,6 @@ def _plot_spread_vs_theta(sweep: List[SigmaPoint], path: str) -> str:
             prop = {p.criterion: p for p in point.propagation}[criterion]
             ax.plot(prop.thetas, prop.sd_deg, marker="o", ms=3,
                     label=f"sigma = {point.sigma:g} px")
-        half = _dec_by_criterion(sweep[0])[criterion].half_width
-        ax.axhline(half, ls="--", color="k", lw=1.0,
-                   label="band half-width")
         ax.set_title(_CRITERION_LABEL.get(criterion, criterion))
         ax.set_xlabel("theta (deg)")
         ax.set_ylabel("induced SD (deg)")
@@ -346,8 +341,8 @@ def _plot_decidability_map(sweep: List[SigmaPoint], path: str) -> str:
     """The summary figure: per-criterion decidability over the (theta, sigma)
     grid, so the headline (sigma, theta) onset reads at a glance.
 
-    Each panel colours the ratio induced_SD / band half-width (green below 1,
-    red above), draws the reliability boundary at ratio = 1, and marks the
+    Each panel colours the ratio induced_SD / band half-width on a sequential
+    colour scale, draws the reliability boundary at ratio = 1, and marks the
     onset -- the first (sigma, theta) at which the criterion turns unreliable,
     the Q3 reading. Panels with no marker stay decidable across the whole grid.
     """
@@ -367,7 +362,7 @@ def _plot_decidability_map(sweep: List[SigmaPoint], path: str) -> str:
         grid = np.array([
             _dec_by_criterion(point)[criterion].ratio for point in sweep])
         mesh = ax.pcolormesh(thetas, sigmas, grid, shading="nearest",
-                             cmap="RdYlGn_r", vmin=_DECIDABILITY_VMIN,
+                             cmap="cividis", vmin=_DECIDABILITY_VMIN,
                              vmax=_DECIDABILITY_VMAX)
         # The reliability boundary at ratio = 1.0, drawn along the cell grid
         # (not an interpolated diagonal) so it reads as a clean threshold: the

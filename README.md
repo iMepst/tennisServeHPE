@@ -19,7 +19,7 @@ The binding specifications live in `docs/`:
 
 ## Setup
 
-Python 3.10+.
+Python 3.11+.
 
 ```bash
 python -m venv .venv

@@ -272,7 +272,7 @@ def _plot_projection_curves(curves: List[ProjectionCurve], path: str) -> str:
 def _plot_spread_vs_theta(sweep: List[SigmaPoint], path: str) -> str:
     """E1+E2: induced angular spread over theta, one panel per criterion.
 
-    A line per swept sigma.
+    A line per swept sigma, with one shared legend below the panels.
     """
     import matplotlib
     matplotlib.use("Agg")
@@ -288,9 +288,11 @@ def _plot_spread_vs_theta(sweep: List[SigmaPoint], path: str) -> str:
         ax.set_title(_CRITERION_LABEL.get(criterion, criterion))
         ax.set_xlabel("theta (deg)")
         ax.set_ylabel("induced SD (deg)")
-        ax.legend(fontsize=7)
+    handles, labels = axes.flat[0].get_legend_handles_labels()
+    fig.legend(handles, labels, loc="lower center", ncol=len(sweep),
+               fontsize=8)
     fig.suptitle("Induced angular spread over viewpoint and noise level")
-    fig.tight_layout()
+    fig.tight_layout(rect=(0, 0.05, 1, 1))
     fig.savefig(path, dpi=120)
     plt.close(fig)
     return path

@@ -35,7 +35,7 @@ from .persistence import (
     read_metadata,
     write_metadata,
 )
-from .rules import Indicator, evaluate_all
+from .rules import RULES, Indicator, evaluate_all, plane_supported
 from .extract import DEFAULT_MODEL, run_extraction
 from .process import GATING_META_JSON, run_filtering, run_gating
 from .visualization import save_key_frame_stills
@@ -196,32 +196,51 @@ def write_result(filtered_csv: str,
     return out_path
 
 
-def _angle_line(name: str, value: Optional[float]) -> str:
-    return f"{name}: {value:.1f} deg" if value is not None else f"{name}: n/a"
+_RULE_BY_ID = {rule.id: rule for rule in RULES}
+
+
+def _angle_line(name: str, criterion: str,
+                by_crit: Dict[str, Dict[str, Any]], camera_plane: str) -> str:
+    """Overlay line for one criterion, following its indicator status.
+
+    An unavailable criterion prints n/a (naming the required plane when the
+    camera plane gates it), so no unassessed angle appears on the still.
+    """
+    ind = by_crit.get(criterion)
+    if ind is None or ind["status"] == "unavailable" or ind["angle"] is None:
+        rule = _RULE_BY_ID[criterion]
+        if not plane_supported(rule, camera_plane):
+            return f"{name}: n/a (needs {rule.plane})"
+        return f"{name}: n/a"
+    return f"{name}: {ind['angle']:.1f} deg"
 
 
 def write_key_frame_stills(video_path: str, stage1_meta: str,
                            filtered_csv: str,
-                           result: ClipResult) -> Optional[str]:
+                           result: ClipResult,
+                           indicators: List[Dict[str, Any]]) -> Optional[str]:
     """Render results/<clip>/key_frames.png: the trophy and impact stills.
 
     Reads the raw landmarks for the pose overlay and the located key frames
-    from the result, labels each with the angles read at it, and tiles them
-    side by side. Returns None when neither key frame was locatable.
+    from the result, labels each with the angles assessed at it (n/a where the
+    indicator is unavailable), and tiles them side by side. Returns None when
+    neither key frame was locatable.
     """
     ev = result.key_events
-    ang = result.angles
+    by_crit = {i["criterion"]: i for i in indicators}
+    plane = result.clip_params.camera_plane
     specs: List[Tuple[int, List[str]]] = []
     if ev.trophy_locatable and ev.trophy_frame is not None:
         specs.append((ev.trophy_frame, [
             f"TROPHY  frame {ev.trophy_frame}",
-            _angle_line("trunk incl.", ang.trunk_inclination),
-            _angle_line("knee flex", ang.front_knee_flexion)]))
+            _angle_line("trunk incl.", "trunk_inclination", by_crit, plane),
+            _angle_line("knee flex", "front_knee_flexion", by_crit, plane)]))
     if ev.impact_locatable and ev.impact_frame is not None:
         specs.append((ev.impact_frame, [
             f"IMPACT  frame {ev.impact_frame}",
-            _angle_line("elbow flex", ang.elbow_flexion),
-            _angle_line("shoulder elev", ang.shoulder_elevation)]))
+            _angle_line("elbow flex", "elbow_flexion", by_crit, plane),
+            _angle_line("shoulder elev", "shoulder_elevation", by_crit,
+                        plane)]))
     if not specs:
         return None
     # Optional QC figure: needs the source video and the raw landmarks, neither
@@ -282,7 +301,8 @@ def process_clip(video_path: str, serving_arm: str, front_leg: str,
     result_dict = assemble_result(result, filtered_csv)
     out_path = write_result(filtered_csv, result_dict)
     stills_path = write_key_frame_stills(
-        video_path, stage1_meta, filtered_csv, result)
+        video_path, stage1_meta, filtered_csv, result,
+        result_dict["indicators"])
     _log_summary(result, result_dict, out_path, stills_path)
     return out_path
 

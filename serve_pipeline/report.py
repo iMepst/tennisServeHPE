@@ -188,8 +188,11 @@ def plot_angles_vs_bands(clips: List[Dict[str, Any]], path: str,
     ax.set_ylabel("angle (deg)")
     ax.set_title("Measured angles against reference bands")
     ax.legend(handles=[
-        Patch(color="tab:green", alpha=0.15,
-              label="reference band (mean ± SD)"),
+        Patch(color="tab:green", alpha=0.15, label="reference band"),
+        plt.Line2D([], [], color="tab:green", lw=1.0,
+                   label="reference mean"),
+        plt.Line2D([], [], color="tab:green", lw=2.0,
+                   label="one-sided threshold"),
         plt.Line2D([], [], marker="o", ls="", color="tab:blue",
                    label="inside"),
         plt.Line2D([], [], marker="o", ls="", color="tab:red",

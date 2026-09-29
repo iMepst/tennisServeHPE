@@ -35,8 +35,8 @@ def _undetected(idx: int) -> FramePose:
                      detected=False, landmarks=[])
 
 
-def _lm_stats(gated_stats: dict, name: str) -> dict:
-    return gated_stats["per_landmark"][name]
+def _lm_stats(stats: dict, name: str) -> dict:
+    return stats["per_landmark"][name]
 
 
 def test_low_visibility_is_masked_others_untouched() -> None:
@@ -151,10 +151,10 @@ def test_gated_csv_roundtrip(tmp_path) -> None:
     gated = gate_frames(frames, 0.5)
     path = str(tmp_path / "gated.csv")
     write_gated_csv(path, gated)
-    back = read_gated_csv(path)
+    restored = read_gated_csv(path)
 
-    assert len(back) == len(gated)
-    for gi, go in zip(gated, back):
+    assert len(restored) == len(gated)
+    for gi, go in zip(gated, restored):
         assert gi.frame_index == go.frame_index
         assert abs(gi.time_s - go.time_s) < 1e-6
         assert len(go.samples) == NUM_LANDMARKS

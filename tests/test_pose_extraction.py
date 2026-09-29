@@ -21,14 +21,14 @@ def test_observation_carries_only_image_plane_fields():
 def test_no_person_returns_undetected():
     noise = np.random.default_rng(0).integers(
         0, 255, size=(480, 640, 3), dtype=np.uint8)
-    with PoseExtractor(DEFAULT_MODEL) as ex:
-        fp = ex.process(0, 0.0, noise)
+    with PoseExtractor(DEFAULT_MODEL) as extractor:
+        fp = extractor.process(0, 0.0, noise)
     assert fp.detected is False
     assert fp.landmarks == []
 
 
 def test_timestamps_strictly_increasing_at_high_fps():
     frame = np.zeros((64, 64, 3), dtype=np.uint8)
-    with PoseExtractor(DEFAULT_MODEL) as ex:
+    with PoseExtractor(DEFAULT_MODEL) as extractor:
         for i in range(5):
-            ex.process(i, i / 10000.0, frame)
+            extractor.process(i, i / 10000.0, frame)

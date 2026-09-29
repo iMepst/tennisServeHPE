@@ -12,7 +12,7 @@ FPS = 25.0
 _VALUE_FIELDS = ["x", "y", "visibility"]
 
 
-def _psample(lm_id: int, val: float, reliable: bool = True) -> ProcessedSample:
+def _sample(lm_id: int, val: float, reliable: bool = True) -> ProcessedSample:
     return ProcessedSample(
         landmark_id=lm_id, valid=True, mask_reason="ok",
         interpolated=False, reliable=reliable, filtered=False,
@@ -25,7 +25,7 @@ def _sine_series(freq_hz: float, n: int = 200,
     for i in range(n):
         t = i / FPS
         val = amp * math.sin(2.0 * math.pi * freq_hz * t)
-        samples = [_psample(lm, val if lm == LM else 0.0)
+        samples = [_sample(lm, val if lm == LM else 0.0)
                    for lm in range(NUM_LANDMARKS)]
         frames.append(ProcessedFrame(frame_index=i, time_s=t, samples=samples))
     return frames
@@ -80,7 +80,7 @@ def test_filtered_csv_roundtrip(tmp_path: Path) -> None:
     for i in range(3):
         samples = []
         for lm in range(NUM_LANDMARKS):
-            s = _psample(lm, float(i + lm))
+            s = _sample(lm, float(i + lm))
             if lm == 5 and i == 1:
                 s.reliable = False
                 s.interpolated = True
@@ -95,10 +95,10 @@ def test_filtered_csv_roundtrip(tmp_path: Path) -> None:
 
     path = str(tmp_path / "filtered.csv")
     write_filtered_csv(path, frames)
-    back = read_filtered_csv(path)
+    restored = read_filtered_csv(path)
 
-    assert len(back) == len(frames)
-    for fi, fo in zip(frames, back):
+    assert len(restored) == len(frames)
+    for fi, fo in zip(frames, restored):
         assert fi.frame_index == fo.frame_index
         assert len(fo.samples) == NUM_LANDMARKS
         for si, so in zip(fi.samples, fo.samples):

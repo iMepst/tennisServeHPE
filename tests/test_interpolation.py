@@ -54,12 +54,12 @@ def _lm(frames: List[ProcessedFrame], i: int) -> ProcessedSample:
 
 
 def test_short_interior_gap_is_linearly_interpolated() -> None:
-    out = interpolate_gaps(_series([True, True, False, False, True, True]),
-                           max_gap_frames=3)
-    assert _lm(out, 2).x == 20.0
-    assert _lm(out, 3).x == 30.0
+    frames = interpolate_gaps(_series([True, True, False, False, True, True]),
+                              max_gap_frames=3)
+    assert _lm(frames, 2).x == 20.0
+    assert _lm(frames, 3).x == 30.0
     for f in (2, 3):
-        s = _lm(out, f)
+        s = _lm(frames, f)
         assert s.interpolated is True
         assert s.reliable is True
         for field in COORD_FIELDS:
@@ -67,26 +67,26 @@ def test_short_interior_gap_is_linearly_interpolated() -> None:
 
 
 def test_gap_longer_than_threshold_is_not_interpolated() -> None:
-    out = interpolate_gaps(
+    frames = interpolate_gaps(
         _series([True, False, False, False, True]), max_gap_frames=2)
     for f in (1, 2, 3):
-        s = _lm(out, f)
+        s = _lm(frames, f)
         assert s.interpolated is False
         assert s.reliable is False
         assert s.x is None
 
 
 def test_edge_gap_is_never_interpolated() -> None:
-    out = interpolate_gaps(_series([False, True, True]), max_gap_frames=3)
-    lead = _lm(out, 0)
+    frames = interpolate_gaps(_series([False, True, True]), max_gap_frames=3)
+    lead = _lm(frames, 0)
     assert lead.interpolated is False
     assert lead.reliable is False
 
 
 def test_valid_samples_are_reliable_and_unchanged() -> None:
-    out = interpolate_gaps(_series([True, True, True]), max_gap_frames=3)
+    frames = interpolate_gaps(_series([True, True, True]), max_gap_frames=3)
     for f in range(3):
-        s = _lm(out, f)
+        s = _lm(frames, f)
         assert s.valid is True
         assert s.reliable is True
         assert s.interpolated is False
@@ -94,19 +94,19 @@ def test_valid_samples_are_reliable_and_unchanged() -> None:
 
 
 def test_undetected_short_gap_still_interpolates_coordinates() -> None:
-    out = interpolate_gaps(
+    frames = interpolate_gaps(
         _series([True, False, True], undetected=True), max_gap_frames=3)
-    s = _lm(out, 1)
+    s = _lm(frames, 1)
     assert s.interpolated is True
     assert s.x == 10.0
     assert s.visibility is None
 
 
 def test_summary_counts_interpolated_and_unreliable() -> None:
-    out = interpolate_gaps(
+    frames = interpolate_gaps(
         _series([True, False, True, False, False, False, True]),
         max_gap_frames=1)
-    stats = summarize_interpolation(out)
+    stats = summarize_interpolation(frames)
     lm = stats["per_landmark"][LANDMARK_NAMES[LM]]
     assert lm["n_interpolated"] == 1
     assert lm["n_unreliable"] == 3

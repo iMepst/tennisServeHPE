@@ -30,17 +30,17 @@ def test_connections_reference_valid_landmarks():
 
 def test_draw_pose_modifies_copy_not_input(blank_frame):
     fp = make_frame_pose(0, 0.0, detected=True)
-    out = draw_pose(blank_frame, fp)
+    overlay = draw_pose(blank_frame, fp)
     assert blank_frame.sum() == 0
-    assert out.sum() > 0
-    assert out.shape == blank_frame.shape
+    assert overlay.sum() > 0
+    assert overlay.shape == blank_frame.shape
 
 
 def test_draw_pose_without_detection_shows_warning(blank_frame):
     fp = make_frame_pose(3, 0.1, detected=False)
-    out = draw_pose(blank_frame, fp)
-    assert out.sum() > 0
-    assert out[..., 2].sum() > 0
+    overlay = draw_pose(blank_frame, fp)
+    assert overlay.sum() > 0
+    assert overlay[..., 2].sum() > 0
 
 
 def test_draw_pose_handles_out_of_frame_coordinates(blank_frame):
@@ -48,8 +48,8 @@ def test_draw_pose_handles_out_of_frame_coordinates(blank_frame):
     fp.landmarks[0].x = -0.5
     fp.landmarks[0].y = 2.0
     fp.landmarks[1].x = 1.5
-    out = draw_pose(blank_frame, fp)
-    assert out.shape == blank_frame.shape
+    overlay = draw_pose(blank_frame, fp)
+    assert overlay.shape == blank_frame.shape
 
 
 def test_contact_sheet(tmp_path, blank_frame):

@@ -60,7 +60,7 @@ def _gap_record(start_pos: int, end_pos: int,
         "start_frame": frame_indices[start_pos],
         "end_frame": frame_indices[end_pos],
         "length_frames": length,
-        "length_ms": length / fps * 1000.0 if fps else None,
+        "length_ms": length / fps * 1000.0,
     }
 
 
@@ -100,7 +100,7 @@ def compute_gap_statistics(gated: List[GatedFrame],
             "n_low_visibility": reasons.count(MASK_LOW_VISIBILITY),
             "num_gaps": len(gaps),
             "longest_gap_frames": longest,
-            "longest_gap_ms": longest / fps * 1000.0 if fps else None,
+            "longest_gap_ms": longest / fps * 1000.0,
             "gaps": gaps,
         }
     worst = sorted(per_landmark.items(),

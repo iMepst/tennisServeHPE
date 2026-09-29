@@ -15,7 +15,7 @@ from .interpolation import (
     interpolate_gaps,
     summarize_interpolation,
 )
-from .landmarks import LANDMARK_NAMES
+from .landmarks import NAME_TO_ID
 from .layout import STAGE2, clip_from_stage_file, sibling_stage_dir
 from .persistence import (
     git_commit_hash,
@@ -111,24 +111,18 @@ def run_gating(landmarks_csv: str, outdir: Optional[str] = None,
 def _peak_motion_window(
         frames: List[ProcessedFrame], landmark_names: List[str], coord: str,
         pad_s: float = QC_WINDOW_PAD_S) -> Optional[Tuple[float, float]]:
-    def _reliable_points(lm_id: int) -> List[Tuple[float, float]]:
-        out = []
-        for f in frames:
-            s = f.samples[lm_id]
-            v = getattr(s, coord)
-            if s.reliable and v is not None:
-                out.append((f.time_s, v))
-        return out
-
     best_lm: Optional[int] = None
     best_span = -1.0
     for name in landmark_names:
-        points = _reliable_points(LANDMARK_NAMES.index(name))
-        if len(points) < 2:
+        lm_id = NAME_TO_ID[name]
+        values = [getattr(f.samples[lm_id], coord) for f in frames
+                  if f.samples[lm_id].reliable]
+        values = [v for v in values if v is not None]
+        if len(values) < 2:
             continue
-        span = max(v for _, v in points) - min(v for _, v in points)
+        span = max(values) - min(values)
         if span > best_span:
-            best_span, best_lm = span, LANDMARK_NAMES.index(name)
+            best_span, best_lm = span, lm_id
     if best_lm is None:
         return None
 

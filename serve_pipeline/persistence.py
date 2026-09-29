@@ -108,7 +108,7 @@ def write_gated_csv(path: str, gated: List[GatedFrame]) -> None:
                 writer.writerow(
                     base + [s.landmark_id, LANDMARK_NAMES[s.landmark_id]]
                     + [_fmt(getattr(s, fld)) for fld in _VALUE_FIELDS]
-                    + [1 if s.valid else 0, s.mask_reason]
+                    + [int(s.valid), s.mask_reason]
                 )
 
 
@@ -142,10 +142,6 @@ def read_gated_csv(path: str) -> List[GatedFrame]:
     return result
 
 
-def _bit(flag: bool) -> int:
-    return 1 if flag else 0
-
-
 def write_filtered_csv(path: str, frames: List[ProcessedFrame]) -> None:
     with open(path, "w", newline="") as f:
         writer = csv.writer(f)
@@ -156,9 +152,9 @@ def write_filtered_csv(path: str, frames: List[ProcessedFrame]) -> None:
                 writer.writerow(
                     base + [s.landmark_id, LANDMARK_NAMES[s.landmark_id]]
                     + [_fmt(getattr(s, fld)) for fld in _VALUE_FIELDS]
-                    + [_bit(s.valid), s.mask_reason]
-                    + [_bit(s.interpolated), _bit(s.reliable),
-                       _bit(s.filtered)]
+                    + [int(s.valid), s.mask_reason]
+                    + [int(s.interpolated), int(s.reliable),
+                       int(s.filtered)]
                 )
 
 
@@ -203,8 +199,7 @@ def write_metadata(path: str, meta: Dict[str, Any]) -> None:
 
 def read_metadata(path: str) -> Dict[str, Any]:
     with open(path) as f:
-        data: Dict[str, Any] = json.load(f)
-    return data
+        return json.load(f)
 
 
 def git_commit_hash() -> Optional[str]:

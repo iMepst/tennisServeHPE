@@ -78,21 +78,6 @@ def ensure_filtered(video_path: str, outdir: str = "results",
     return filtered_csv, stage1_meta
 
 
-def _video_meta(stage1_meta: str, fps: Optional[float],
-                frame_width: Optional[int], frame_height: Optional[int]
-                ) -> Tuple[float, int, int]:
-    """fps and frame size, from the extraction meta JSON unless overridden.
-
-    The meta records the container fps and frame dimensions; explicit arguments
-    win (e.g. a manually corrected fps).
-    """
-    video = read_metadata(stage1_meta)["video"]
-    return (float(fps if fps is not None else video["fps"]),
-            int(frame_width if frame_width is not None else video["width"]),
-            int(frame_height if frame_height is not None
-                else video["height"]))
-
-
 @dataclass
 class ClipResult:
     clip: str
@@ -109,16 +94,19 @@ def run_clip(filtered_csv: str, serving_arm: str, front_leg: str,
              frame_width: Optional[int] = None,
              frame_height: Optional[int] = None) -> ClipResult:
     clip = clip_from_stage_file(filtered_csv)
-    fps, frame_width, frame_height = _video_meta(
-        stage1_meta, fps, frame_width, frame_height)
+    video = read_metadata(stage1_meta)["video"]
     clip_params = ClipParams(
         serving_arm=serving_arm, front_leg=front_leg,
         camera_plane=camera_plane, view_direction=view_direction,
-        fps=fps, frame_width=frame_width, frame_height=frame_height)
+        fps=float(fps if fps is not None else video["fps"]),
+        frame_width=int(frame_width if frame_width is not None
+                        else video["width"]),
+        frame_height=int(frame_height if frame_height is not None
+                         else video["height"]))
 
     frames = read_filtered_csv(filtered_csv)
     key_events = detect_key_events(frames, clip_params)
-    slow_motion = flag_possible_slow_motion(key_events, fps)
+    slow_motion = flag_possible_slow_motion(key_events, clip_params.fps)
     angles = compute_angles(frames, key_events, clip_params)
 
     return ClipResult(clip=clip, clip_params=clip_params,
@@ -161,7 +149,6 @@ def write_result(filtered_csv: str,
     """
     clip_dir = os.path.dirname(
         os.path.dirname(os.path.abspath(filtered_csv)))
-    os.makedirs(clip_dir, exist_ok=True)
     out_path = os.path.join(clip_dir, "result.json")
     write_metadata(out_path, record)
     return out_path

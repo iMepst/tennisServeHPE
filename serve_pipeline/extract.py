@@ -61,12 +61,10 @@ def run_extraction(video_path: str, outdir: str = "results",
     with VideoReader(video_path) as reader:
         video = reader.metadata
         n_expected = video.frame_count_reported
-        if max_frames is not None and n_expected > 0:
+        if max_frames is not None:
             n_expected = min(n_expected, max_frames)
-        sheet_indices = set()
-        if n_expected > 0:
-            step = max(1, n_expected // contact_sheet_frames)
-            sheet_indices = set(range(0, n_expected, step))
+        sheet_indices = set(range(
+            0, n_expected, max(1, n_expected // contact_sheet_frames)))
 
         with PoseExtractor(
             model_path=model_path,

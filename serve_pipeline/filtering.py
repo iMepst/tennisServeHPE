@@ -38,32 +38,19 @@ def _reliable_segments(reliable: List[bool]) -> List[tuple]:
     return segs
 
 
-def _min_segment_length(cfg: FilterConfig) -> int:
+def filter_series(frames: List[ProcessedFrame], fps: float,
+                  cfg: FilterConfig) -> Dict[str, Any]:
+    """Filter reliable segments in place; flag filtered samples."""
     # filtfilt's default padlen is 3 * max(len(a), len(b)) = 3*(order+1);
     # the segment must be strictly longer than that.
-    return 3 * (cfg.order + 1) + 1
-
-
-def _design_lowpass(fps: float, cfg: FilterConfig) -> tuple:
+    min_len = 3 * (cfg.order + 1) + 1
     nyquist = 0.5 * fps
     wn = cfg.cutoff_hz / nyquist
     if not 0.0 < wn < 1.0:
         raise ValueError(
             f"cutoff_hz {cfg.cutoff_hz} must be in (0, {nyquist}) at "
             f"fps {fps}")
-    return butter(cfg.order, wn, btype="low")
-
-
-def _filter_segment(values: np.ndarray, b: np.ndarray,
-                    a: np.ndarray) -> np.ndarray:
-    return np.asarray(filtfilt(b, a, values), dtype=float)
-
-
-def filter_series(frames: List[ProcessedFrame], fps: float,
-                  cfg: FilterConfig) -> Dict[str, Any]:
-    """Filter reliable segments in place; flag filtered samples."""
-    min_len = _min_segment_length(cfg)
-    b, a = _design_lowpass(fps, cfg)
+    b, a = butter(cfg.order, wn, btype="low")
     n_filtered = 0
     n_reliable = 0
     n_short_segments = 0
@@ -78,7 +65,7 @@ def filter_series(frames: List[ProcessedFrame], fps: float,
                 raw = np.array(
                     [getattr(frames[p].samples[lm_id], field)
                      for p in range(start, end + 1)], dtype=float)
-                smoothed = _filter_segment(raw, b, a)
+                smoothed = filtfilt(b, a, raw)
                 for k, p in enumerate(range(start, end + 1)):
                     setattr(frames[p].samples[lm_id], field,
                             float(smoothed[k]))

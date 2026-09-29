@@ -15,7 +15,7 @@ import csv
 import glob
 import logging
 import os
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 from .persistence import read_metadata
 from .rules import RULES, Rule
@@ -48,17 +48,6 @@ def find_result_jsons(results_root: str) -> List[str]:
         if os.path.basename(os.path.dirname(p)) != DEFAULT_REPORT_DIR)
 
 
-def _band_bounds(rule: Rule) -> Dict[str, Optional[float]]:
-    """The band bounds a criterion is judged against.
-
-    Two-sided rules use [lo, hi]; the one-sided knee uses only the lower
-    bound (hi left None), matching evaluate() in rules.py.
-    """
-    if rule.band_kind == "lower_bound":
-        return {"band_lo": rule.lo, "band_hi": None}
-    return {"band_lo": rule.lo, "band_hi": rule.hi}
-
-
 def indicator_rows(clips: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     rows: List[Dict[str, Any]] = []
     for clip in clips:
@@ -66,7 +55,6 @@ def indicator_rows(clips: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         events = clip["key_events"]
         for ind in clip["indicators"]:
             rule = _RULE_BY_ID[ind["criterion"]]
-            bounds = _band_bounds(rule)
             rows.append({
                 "clip": clip["clip"],
                 "camera_plane": params["camera_plane"],
@@ -74,8 +62,9 @@ def indicator_rows(clips: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
                 "criterion": ind["criterion"],
                 "status": ind["status"],
                 "angle": ind["angle"],
-                "band_lo": bounds["band_lo"],
-                "band_hi": bounds["band_hi"],
+                "band_lo": rule.lo,
+                "band_hi": (None if rule.band_kind == "lower_bound"
+                            else rule.hi),
                 "band_kind": rule.band_kind,
                 "detail": ind["detail"],
                 "trophy_locatable": events["trophy_locatable"],

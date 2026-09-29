@@ -2,7 +2,7 @@ from typing import Any, List, Optional, Sequence, Tuple
 
 from .gating import GatedFrame, MASK_UNDETECTED
 from .interpolation import ProcessedFrame
-from .landmarks import LANDMARK_NAMES
+from .landmarks import NAME_TO_ID
 
 import matplotlib
 matplotlib.use("Agg")
@@ -53,7 +53,6 @@ def _span(ax: Any, times: List[float], start: int, end: int,
 
 def plot_raw_vs_gated(gated: List[GatedFrame], landmark_names: Sequence[str],
                       visibility_threshold: float, path: str) -> str:
-    name_to_id = {n: i for i, n in enumerate(LANDMARK_NAMES)}
     times = [g.time_s for g in gated]
     pad = _typical_dt(times) / 2.0
 
@@ -62,10 +61,8 @@ def plot_raw_vs_gated(gated: List[GatedFrame], landmark_names: Sequence[str],
                              sharex=True, squeeze=False)
     for row, lm_name in enumerate(landmark_names):
         ax = axes[row][0]
-        lm_id = name_to_id[lm_name]
-        vis = [g.samples[lm_id].visibility
-               if g.samples[lm_id].visibility is not None else float("nan")
-               for g in gated]
+        lm_id = NAME_TO_ID[lm_name]
+        vis = [_coord(g.samples[lm_id], "visibility") for g in gated]
         ax.plot(times, vis, color="tab:blue", lw=1.0)
         ax.axhline(visibility_threshold, color="k", ls="--", lw=0.8)
         _shade_invalid(ax, gated, lm_id, times, pad)
@@ -119,19 +116,15 @@ def plot_raw_vs_filtered(
         landmark_names: Sequence[str], coord: str, path: str,
         title: Optional[str] = None,
         time_window: Optional[Tuple[float, float]] = None) -> str:
-    name_to_id = {n: i for i, n in enumerate(LANDMARK_NAMES)}
     times = [f.time_s for f in pre_filter]
     pad = _typical_dt(times) / 2.0
-
-    def _in_window(t: float) -> bool:
-        return time_window is None or time_window[0] <= t <= time_window[1]
 
     n = len(landmark_names)
     fig, axes = plt.subplots(n, 1, figsize=(11, 2.4 * n),
                              sharex=True, squeeze=False)
     for row, lm_name in enumerate(landmark_names):
         ax = axes[row][0]
-        lm_id = name_to_id[lm_name]
+        lm_id = NAME_TO_ID[lm_name]
         raw = [_coord(f.samples[lm_id], coord) for f in pre_filter]
         ax.plot(times, raw, color="0.6", lw=0.8, label="pre-filter")
         smoothed = [_coord(f.samples[lm_id], coord) for f in filtered]
@@ -142,7 +135,8 @@ def plot_raw_vs_filtered(
         if time_window is not None:
             ax.set_xlim(*time_window)
             windowed = [v for t, v in zip(times, raw)
-                        if _in_window(t) and v == v]  # in window, non-nan
+                        if time_window[0] <= t <= time_window[1]
+                        and v == v]  # in window, non-nan
             if windowed:
                 lo, hi = min(windowed), max(windowed)
                 margin = 0.05 * (hi - lo) + 1e-6

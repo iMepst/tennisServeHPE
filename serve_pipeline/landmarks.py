@@ -1,5 +1,3 @@
-"""BlazePose 33-landmark topology constants."""
-
 # List index = BlazePose landmark id.
 LANDMARK_NAMES = [
     "nose",
@@ -33,7 +31,6 @@ POSE_CONNECTIONS = [
     (24, 26), (26, 28), (28, 30), (30, 32), (28, 32),
 ]
 
-# Landmarks most relevant for serve kinematics
 SERVE_KEY_LANDMARKS = [
     "left_shoulder", "right_shoulder",
     "left_elbow", "right_elbow",

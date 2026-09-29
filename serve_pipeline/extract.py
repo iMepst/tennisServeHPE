@@ -62,7 +62,6 @@ def run_extraction(video_path: str, outdir: str = "results",
 
     with VideoReader(video_path) as reader:
         meta_video = reader.metadata
-        # Pick evenly spaced frames for the contact sheet up front.
         n_expected = meta_video.frame_count_reported
         if max_frames is not None and n_expected > 0:
             n_expected = min(n_expected, max_frames)

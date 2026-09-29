@@ -21,7 +21,6 @@ def visibility_to_bgr(visibility: float) -> _BgrColor:
 
 
 def draw_pose(image_bgr: BgrImage, frame_pose: FramePose) -> BgrImage:
-    """Draws skeleton + HUD onto a copy of the frame and returns it."""
     out = image_bgr.copy()
     h, w = out.shape[:2]
 
@@ -44,8 +43,6 @@ def draw_pose(image_bgr: BgrImage, frame_pose: FramePose) -> BgrImage:
 
 
 class OverlayVideoWriter:
-    """Writes overlay frames to an mp4 with the source video's fps/size."""
-
     def __init__(self, path: str, fps: float,
                  width: int, height: int) -> None:
         self.path = path
@@ -70,11 +67,6 @@ class OverlayVideoWriter:
 def label_frame(image_bgr: BgrImage, frame_pose: Optional[FramePose],
                 lines: Sequence[str],
                 draw_skeleton: bool = True) -> BgrImage:
-    """One key-frame panel: pose overlay plus a label block.
-
-    Returns a copy with the skeleton drawn (when frame_pose is given and
-    draw_skeleton set) and the label lines in a dark box below the HUD.
-    """
     if draw_skeleton and frame_pose is not None:
         out = draw_pose(image_bgr, frame_pose)
     else:
@@ -96,7 +88,6 @@ def label_frame(image_bgr: BgrImage, frame_pose: Optional[FramePose],
 
 
 def _hstack_common_height(images: List[BgrImage]) -> BgrImage:
-    """Tile images left to right, scaled to their common (minimum) height."""
     h = min(im.shape[0] for im in images)
     resized = []
     for im in images:
@@ -111,12 +102,6 @@ def save_key_frame_stills(video_path: str, frame_poses: List[FramePose],
                           specs: Sequence[Tuple[int, Sequence[str]]],
                           out_path: str,
                           draw_skeleton: bool = True) -> Optional[str]:
-    """Write one side-by-side PNG of the located key frames.
-
-    specs is a list of (frame_index, label lines): each named frame is read
-    once from the video, overlaid and labelled (label_frame), then tiled left
-    to right in order. Returns None when no spec resolves to a frame.
-    """
     if not specs:
         return None
     poses = {fp.frame_index: fp for fp in frame_poses}
@@ -138,7 +123,6 @@ def save_key_frame_stills(video_path: str, frame_poses: List[FramePose],
 
 def save_contact_sheet(path: str, images: List[BgrImage], columns: int = 4,
                        thumb_width: int = 960) -> str:
-    """Tiles overlay frames into one PNG for a quick visual sanity check."""
     if not images:
         raise ValueError("no images given")
     thumbs = []

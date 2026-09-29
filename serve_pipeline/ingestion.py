@@ -29,8 +29,6 @@ class Frame:
 
 
 class VideoReader:
-    """Iterates a video file frame by frame."""
-
     def __init__(self, path: str) -> None:
         if not os.path.isfile(path):
             raise FileNotFoundError(path)

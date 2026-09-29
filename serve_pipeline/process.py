@@ -44,10 +44,8 @@ GATING_META_JSON = "gating_meta.json"
 FILTERING_META_JSON = "filtering_meta.json"
 
 
-# Stage 2a: gating
 def _resolve_fps_from_extraction_meta(meta_path: Optional[str],
                                       frames: List[FramePose]) -> float:
-    """fps from the Stage 1 meta JSON, falling back to frame timestamps."""
     if meta_path and os.path.isfile(meta_path):
         fps = read_metadata(meta_path).get("video", {}).get("fps")
         if fps:
@@ -125,10 +123,8 @@ def run_gating(csv_path: str, outdir: Optional[str] = None,
     return meta
 
 
-# Stage 2b: interpolation + filtering
 def _resolve_fps_from_gating_meta(meta_path: Optional[str],
                                   gated: List[GatedFrame]) -> float:
-    """fps from the Stage 2a meta JSON, falling back to gated timestamps."""
     if meta_path and os.path.isfile(meta_path):
         fps = read_metadata(meta_path).get("parameters", {}).get("fps")
         if fps:
@@ -144,7 +140,6 @@ def _resolve_fps_from_gating_meta(meta_path: Optional[str],
 def _peak_motion_window(
         frames: List[ProcessedFrame], landmark_names: List[str], coord: str,
         pad_s: float = QC_WINDOW_PAD_S) -> Optional[Tuple[float, float]]:
-    """Time window centred on the swing, as a serve-proxy for the plot zoom."""
     def _reliable_vals(lm_id: int) -> List[Tuple[float, float]]:
         out = []
         for f in frames:
@@ -154,7 +149,6 @@ def _peak_motion_window(
                 out.append((f.time_s, v))
         return out
 
-    # Landmark with the widest reliable excursion.
     best_lm: Optional[int] = None
     best_range = -1.0
     for name in landmark_names:
@@ -204,7 +198,7 @@ def run_filtering(gated_csv_path: str, outdir: Optional[str] = None,
                                  GATING_META_JSON)
         meta_path = candidate if os.path.isfile(candidate) else None
     if filter_cfg is None:
-        filter_cfg = FilterConfig()  # config-driven defaults
+        filter_cfg = FilterConfig()
 
     gated = read_gated_csv(gated_csv_path)
     fps = _resolve_fps_from_gating_meta(meta_path, gated)
@@ -256,7 +250,6 @@ def run_filtering(gated_csv_path: str, outdir: Optional[str] = None,
 
     landmarks = qc_landmarks or DEFAULT_QC_LANDMARKS
     window = _peak_motion_window(filtered, landmarks, qc_coord)
-    # Filter sanity check: pre-filter vs filtered around the swing.
     plot_raw_vs_filtered(
         pre_filter, filtered, f"butterworth {filter_cfg.cutoff_hz:g} Hz",
         landmarks, qc_coord, paths["filtering_qc_png"],
@@ -281,7 +274,6 @@ def run_filtering(gated_csv_path: str, outdir: Optional[str] = None,
     return meta
 
 
-# CLI
 def _add_common_qc(sub: argparse.ArgumentParser) -> None:
     sub.add_argument("--outdir", default=None,
                      help="override output dir (default: the clip's "
@@ -312,7 +304,7 @@ def main() -> None:
     p2b.add_argument("--meta", default=None,
                      help="Stage 2a gating_meta.json (for fps); auto-detected "
                           "next to the CSV if omitted")
-    default_filter = FilterConfig()  # config-driven defaults
+    default_filter = FilterConfig()
     p2b.add_argument("--max-gap-ms", type=float, default=DEFAULT_MAX_GAP_MS,
                      help="interpolation gap bound in ms, converted to "
                           "frames from the clip's fps")

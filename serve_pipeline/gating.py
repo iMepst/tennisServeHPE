@@ -28,7 +28,6 @@ class GatedFrame:
 
 def gate_frames(frames: List[FramePose],
                 visibility_threshold: float) -> List[GatedFrame]:
-    """Apply visibility gating to a raw landmark series."""
     gated: List[GatedFrame] = []
     for fp in frames:
         by_id = {obs.landmark_id: obs for obs in fp.landmarks}
@@ -67,7 +66,6 @@ def _gap_record(start_pos: int, end_pos: int,
 
 def _find_gaps(valid_flags: List[bool], frame_indices: List[int],
                fps: float) -> List[Dict[str, Any]]:
-    """Maximal runs of consecutive invalid samples, as gap records."""
     gaps: List[Dict[str, Any]] = []
     start_pos: Optional[int] = None
     for i, ok in enumerate(valid_flags):
@@ -85,7 +83,6 @@ def _find_gaps(valid_flags: List[bool], frame_indices: List[int],
 
 def compute_gap_statistics(gated: List[GatedFrame],
                            fps: float) -> Dict[str, Any]:
-    """Per-landmark validity and gap statistics for the metadata JSON."""
     frame_indices = [g.frame_index for g in gated]
     n = len(gated)
     per_landmark: Dict[str, Any] = {}

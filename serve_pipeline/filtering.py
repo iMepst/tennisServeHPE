@@ -13,11 +13,6 @@ _DEFAULTS = PipelineConfig()
 
 @dataclass
 class FilterConfig:
-    """Butterworth low-pass parameters.
-
-    Defaults from PipelineConfig: order 2, effectively 4th order via the
-    filtfilt double pass, with a fixed 8 Hz cut-off.
-    """
     order: int = _DEFAULTS.butterworth_order
     cutoff_hz: float = _DEFAULTS.cutoff_hz
 
@@ -30,7 +25,6 @@ class FilterConfig:
 
 
 def _reliable_segments(reliable: List[bool]) -> List[tuple]:
-    """Contiguous runs of reliable positions, as (start, end) pairs."""
     segs: List[tuple] = []
     start: Optional[int] = None
     for i, r in enumerate(reliable):
@@ -45,14 +39,12 @@ def _reliable_segments(reliable: List[bool]) -> List[tuple]:
 
 
 def _min_segment_length(cfg: FilterConfig) -> int:
-    """Shortest segment the configured filter can process."""
     # filtfilt's default padlen is 3 * max(len(a), len(b)) = 3*(order+1);
     # the segment must be strictly longer than that.
     return 3 * (cfg.order + 1) + 1
 
 
 def _design_lowpass(fps: float, cfg: FilterConfig) -> tuple:
-    """Butterworth coefficients (b, a); invariant over the whole clip."""
     nyquist = 0.5 * fps
     wn = cfg.cutoff_hz / nyquist
     if not 0.0 < wn < 1.0:

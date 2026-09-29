@@ -27,7 +27,6 @@ def _typical_dt(times: List[float]) -> float:
 
 def _shade_invalid(ax: Any, gated: List[GatedFrame], lm_id: int,
                    times: List[float], pad: float) -> None:
-    """Shade contiguous invalid spans, breaking whenever the reason changes."""
     start = None
     reason = ""
     for i, g in enumerate(gated):
@@ -100,7 +99,6 @@ def _coord(sample: Any, coord: str) -> float:
 
 def _shade_unreliable(ax: Any, frames: List[ProcessedFrame], lm_id: int,
                       times: List[float], pad: float) -> None:
-    """Shade contiguous spans where the sample is unreliable (a long gap)."""
     start = None
     for i, f in enumerate(frames):
         if not f.samples[lm_id].reliable:
@@ -121,7 +119,6 @@ def plot_raw_vs_filtered(
         landmark_names: Sequence[str], coord: str, path: str,
         title: Optional[str] = None,
         time_window: Optional[Tuple[float, float]] = None) -> str:
-    """Overlay the pre-filter and filtered signals for one channel."""
     name_to_id = {n: i for i, n in enumerate(LANDMARK_NAMES)}
     times = [f.time_s for f in pre_filter]
     pad = _typical_dt(times) / 2.0

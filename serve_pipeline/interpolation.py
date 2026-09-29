@@ -4,9 +4,7 @@ from typing import Any, Dict, List, Optional
 from .gating import GatedFrame
 from .landmarks import LANDMARK_NAMES, NUM_LANDMARKS
 
-# Spatial channels that get interpolated (and later filtered).
 COORD_FIELDS = ["x", "y"]
-# Quality channels carried through untouched.
 PASS_FIELDS = ["visibility"]
 
 
@@ -14,10 +12,10 @@ PASS_FIELDS = ["visibility"]
 class ProcessedSample:
     landmark_id: int
     valid: bool          # original gating decision
-    mask_reason: str     # original reason
-    interpolated: bool   # coordinates were filled by interpolation
+    mask_reason: str
+    interpolated: bool
     reliable: bool       # usable downstream (valid or short-gap interpolated)
-    filtered: bool       # low-pass filter was applied (set in filtering.py)
+    filtered: bool
     x: Optional[float]
     y: Optional[float]
     visibility: Optional[float]
@@ -31,7 +29,6 @@ class ProcessedFrame:
 
 
 def _invalid_runs(valid: List[bool]) -> List[tuple]:
-    """Maximal runs of consecutive invalid positions, as (start, end) pairs."""
     runs: List[tuple] = []
     start: Optional[int] = None
     for i, ok in enumerate(valid):
@@ -47,9 +44,7 @@ def _invalid_runs(valid: List[bool]) -> List[tuple]:
 
 def interpolate_gaps(gated: List[GatedFrame],
                      max_gap_frames: int) -> List[ProcessedFrame]:
-    """Fill short interior gaps; flag interpolated and unreliable samples."""
     n = len(gated)
-    # Seed each sample from its gated counterpart; invalid ones start unreliable until filled below.
     out: List[ProcessedFrame] = []
     for g in gated:
         samples = [
@@ -89,7 +84,6 @@ def interpolate_gaps(gated: List[GatedFrame],
 
 
 def summarize_interpolation(frames: List[ProcessedFrame]) -> Dict[str, Any]:
-    """Interpolation / reliability counts for the Stage 2b metadata JSON."""
     n = len(frames)
     per_landmark: Dict[str, Any] = {}
     total_interpolated = 0

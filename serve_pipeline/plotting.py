@@ -134,17 +134,17 @@ def plot_raw_vs_filtered(
         lm_id = name_to_id[lm_name]
         raw = [_coord(f.samples[lm_id], coord) for f in pre_filter]
         ax.plot(times, raw, color="0.6", lw=0.8, label="pre-filter")
-        vals = [_coord(f.samples[lm_id], coord) for f in filtered]
-        ax.plot(times, vals, lw=1.2, label=label)
+        smoothed = [_coord(f.samples[lm_id], coord) for f in filtered]
+        ax.plot(times, smoothed, lw=1.2, label=label)
         _shade_unreliable(ax, pre_filter, lm_id, times, pad)
         ax.set_ylabel(coord)
         ax.set_title(lm_name, fontsize=9, loc="left")
         if time_window is not None:
             ax.set_xlim(*time_window)
-            vis = [v for t, v in zip(times, raw)
-                   if _in_window(t) and v == v]  # in window, non-nan
-            if vis:
-                lo, hi = min(vis), max(vis)
+            windowed = [v for t, v in zip(times, raw)
+                        if _in_window(t) and v == v]  # in window, non-nan
+            if windowed:
+                lo, hi = min(windowed), max(windowed)
                 margin = 0.05 * (hi - lo) + 1e-6
                 ax.set_ylim(lo - margin, hi + margin)
 

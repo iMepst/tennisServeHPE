@@ -103,9 +103,9 @@ def write_gated_csv(path: str, gated: List[GatedFrame]) -> None:
     with open(path, "w", newline="") as f:
         writer = csv.writer(f)
         writer.writerow(GATED_CSV_HEADER)
-        for gframe in gated:
-            base = [gframe.frame_index, f"{gframe.time_s:.6f}"]
-            for s in gframe.samples:
+        for frame in gated:
+            base = [frame.frame_index, f"{frame.time_s:.6f}"]
+            for s in frame.samples:
                 writer.writerow(
                     base + [s.landmark_id, LANDMARK_NAMES[s.landmark_id]]
                     + [_fmt(getattr(s, fld)) for fld in _VALUE_FIELDS]

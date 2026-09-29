@@ -61,8 +61,8 @@ def run_extraction(video_path: str, outdir: str = "results",
     sheet_frames: List[BgrImage] = []
 
     with VideoReader(video_path) as reader:
-        meta_video = reader.metadata
-        n_expected = meta_video.frame_count_reported
+        video = reader.metadata
+        n_expected = video.frame_count_reported
         if max_frames is not None and n_expected > 0:
             n_expected = min(n_expected, max_frames)
         sheet_indices = set()
@@ -77,8 +77,8 @@ def run_extraction(video_path: str, outdir: str = "results",
         ) as extractor, \
                 LandmarkCsvWriter(paths["landmarks_csv"]) as csv_out, \
                 OverlayVideoWriter(
-                    paths["overlay_mp4"], meta_video.fps,
-                    meta_video.width, meta_video.height) as vid_out:
+                    paths["overlay_mp4"], video.fps,
+                    video.width, video.height) as vid_out:
             for frame in reader:
                 if max_frames is not None and frame.index >= max_frames:
                     break
@@ -109,7 +109,7 @@ def run_extraction(video_path: str, outdir: str = "results",
         "commit": git_commit_hash(),
         "mediapipe_version": mediapipe.__version__,
         "created_utc": now.isoformat(),
-        "video": meta_video.to_dict(),
+        "video": video.to_dict(),
         "extractor": extractor_config,
         "statistics": stats,
         "outputs": {k: os.path.abspath(v) for k, v in paths.items()},

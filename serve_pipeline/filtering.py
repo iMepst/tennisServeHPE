@@ -63,25 +63,26 @@ def filter_series(frames: List[ProcessedFrame], fps: float,
                   cfg: FilterConfig) -> Dict[str, Any]:
     """Filter reliable segments in place; flag filtered samples."""
     min_len = _min_segment_length(cfg)
-    coeff_b, coeff_a = _design_lowpass(fps, cfg)
+    b, a = _design_lowpass(fps, cfg)
     n_filtered = 0
     n_reliable = 0
     n_short_segments = 0
     for lm_id in range(NUM_LANDMARKS):
         reliable = [f.samples[lm_id].reliable for f in frames]
         n_reliable += sum(reliable)
-        for a, b in _reliable_segments(reliable):
-            if (b - a + 1) < min_len:
+        for start, end in _reliable_segments(reliable):
+            if (end - start + 1) < min_len:
                 n_short_segments += 1
                 continue
             for field in COORD_FIELDS:
-                vals = np.array(
+                raw = np.array(
                     [getattr(frames[p].samples[lm_id], field)
-                     for p in range(a, b + 1)], dtype=float)
-                fvals = _filter_segment(vals, coeff_b, coeff_a)
-                for k, p in enumerate(range(a, b + 1)):
-                    setattr(frames[p].samples[lm_id], field, float(fvals[k]))
-            for p in range(a, b + 1):
+                     for p in range(start, end + 1)], dtype=float)
+                smoothed = _filter_segment(raw, b, a)
+                for k, p in enumerate(range(start, end + 1)):
+                    setattr(frames[p].samples[lm_id], field,
+                            float(smoothed[k]))
+            for p in range(start, end + 1):
                 frames[p].samples[lm_id].filtered = True
                 n_filtered += 1
     return {

@@ -137,7 +137,7 @@ def plot_angles_vs_bands(clips: List[Dict[str, Any]], path: str,
 
     order = list(_CRITERION_LABEL)
     fig, ax = plt.subplots(figsize=(9, 5))
-    lower_bound_x = []
+    one_sided = []
     for x, criterion in enumerate(order):
         rule = _RULE_BY_ID[criterion]
         if rule.band_kind != "lower_bound":
@@ -146,7 +146,7 @@ def plot_angles_vs_bands(clips: List[Dict[str, Any]], path: str,
                                        color="tab:green", alpha=0.15, lw=0))
             ax.hlines(rule.mean, x - 0.3, x + 0.3, color="tab:green", lw=1.0)
         else:
-            lower_bound_x.append((x, rule))
+            one_sided.append((x, rule))
         for clip in clips:
             by_crit = {i["criterion"]: i for i in clip.get("indicators", [])}
             ind = by_crit.get(criterion)
@@ -161,7 +161,7 @@ def plot_angles_vs_bands(clips: List[Dict[str, Any]], path: str,
     # the shoulder-driven axis top. The rule itself stays one-sided. The cap
     # sits below the shoulder-driven axis top, so the shared range is
     # unchanged.
-    for x, rule in lower_bound_x:
+    for x, rule in one_sided:
         ax.add_patch(plt.Rectangle((x - 0.3, rule.lo), 0.6,
                                    knee_cap_deg - rule.lo,
                                    color="tab:green", alpha=0.15, lw=0))
@@ -204,11 +204,11 @@ def build_report(results_root: str, out_dir: str,
     clips = [load_clip(p) for p in result_paths]
     os.makedirs(out_dir, exist_ok=True)
 
-    ind_rows = indicator_rows(clips)
+    rows = indicator_rows(clips)
     outputs = {
         "indicators_csv": write_csv(
             os.path.join(out_dir, "indicators.csv"),
-            _INDICATOR_HEADER, ind_rows),
+            _INDICATOR_HEADER, rows),
     }
     if make_figure:
         outputs["angles_figure"] = plot_angles_vs_bands(

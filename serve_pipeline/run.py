@@ -79,10 +79,10 @@ def ensure_filtered(video_path: str, outdir: str = "results",
     return filtered_csv, stage1_meta
 
 
-def _resolve_video_meta(filtered_csv: str, stage1_meta: Optional[str],
-                        fps: Optional[float], frame_width: Optional[int],
-                        frame_height: Optional[int]
-                        ) -> Tuple[float, int, int]:
+def _video_meta(filtered_csv: str, stage1_meta: Optional[str],
+                fps: Optional[float], frame_width: Optional[int],
+                frame_height: Optional[int]
+                ) -> Tuple[float, int, int]:
     """fps and frame size, from the extraction meta JSON unless overridden.
 
     The meta records the container fps and frame dimensions; explicit arguments
@@ -128,7 +128,7 @@ def run_clip(filtered_csv: str, serving_arm: str, front_leg: str,
              frame_width: Optional[int] = None,
              frame_height: Optional[int] = None) -> ClipResult:
     clip = clip_from_stage_file(filtered_csv)
-    fps, frame_width, frame_height = _resolve_video_meta(
+    fps, frame_width, frame_height = _video_meta(
         filtered_csv, stage1_meta, fps, frame_width, frame_height)
     clip_params = ClipParams(
         serving_arm=serving_arm, front_leg=front_leg,
@@ -172,7 +172,7 @@ def assemble_result(result: ClipResult,
 
 
 def write_result(filtered_csv: str,
-                 result_dict: Dict[str, Any]) -> str:
+                 record: Dict[str, Any]) -> str:
     """Write the result dict to results/<clip>/result.json.
 
     Sits in the clip's results folder beside the persisted stage1/stage2
@@ -182,7 +182,7 @@ def write_result(filtered_csv: str,
         os.path.dirname(os.path.abspath(filtered_csv)))
     os.makedirs(clip_dir, exist_ok=True)
     out_path = os.path.join(clip_dir, "result.json")
-    write_metadata(out_path, result_dict)
+    write_metadata(out_path, record)
     return out_path
 
 
@@ -241,7 +241,7 @@ def write_key_frame_stills(video_path: str, stage1_meta: str,
         os.path.dirname(os.path.abspath(filtered_csv)))
     out_path = os.path.join(clip_dir, "key_frames.png")
     return save_key_frame_stills(video_path, frame_poses, specs, out_path)
-def _log_summary(result: ClipResult, result_dict: Dict[str, Any],
+def _log_summary(result: ClipResult, record: Dict[str, Any],
                  out_path: str, stills_path: Optional[str] = None) -> None:
     ev = result.key_events
     logger.info("Run complete for clip %s", result.clip)
@@ -258,7 +258,7 @@ def _log_summary(result: ClipResult, result_dict: Dict[str, Any],
         logger.info("  slow-motion: %s (trophy->impact %.2f s)",
                     "likely" if sm.likely_slow_motion else "no",
                     sm.trophy_to_impact_s)
-    for ind in result_dict["indicators"]:
+    for ind in record["indicators"]:
         angle = ind["angle"]
         logger.info("  %-18s %-11s %s", ind["criterion"], ind["status"],
                     "" if angle is None else f"{angle:.1f} deg")
@@ -276,12 +276,12 @@ def process_clip(video_path: str, serving_arm: str, front_leg: str,
     result = run_clip(filtered_csv, serving_arm, front_leg, camera_plane,
                       view_direction, stage1_meta, fps, frame_width,
                       frame_height)
-    result_dict = assemble_result(result, filtered_csv)
-    out_path = write_result(filtered_csv, result_dict)
+    record = assemble_result(result, filtered_csv)
+    out_path = write_result(filtered_csv, record)
     stills_path = write_key_frame_stills(
         video_path, stage1_meta, filtered_csv, result,
-        result_dict["indicators"])
-    _log_summary(result, result_dict, out_path, stills_path)
+        record["indicators"])
+    _log_summary(result, record, out_path, stills_path)
     return out_path
 
 

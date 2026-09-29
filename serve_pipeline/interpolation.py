@@ -45,7 +45,7 @@ def _invalid_runs(valid: List[bool]) -> List[tuple]:
 def interpolate_gaps(gated: List[GatedFrame],
                      max_gap_frames: int) -> List[ProcessedFrame]:
     n = len(gated)
-    out: List[ProcessedFrame] = []
+    frames: List[ProcessedFrame] = []
     for g in gated:
         samples = [
             ProcessedSample(
@@ -57,11 +57,11 @@ def interpolate_gaps(gated: List[GatedFrame],
             )
             for s in g.samples
         ]
-        out.append(ProcessedFrame(frame_index=g.frame_index,
-                                  time_s=g.time_s, samples=samples))
+        frames.append(ProcessedFrame(frame_index=g.frame_index,
+                                     time_s=g.time_s, samples=samples))
 
     for lm_id in range(NUM_LANDMARKS):
-        valid = [f.samples[lm_id].valid for f in out]
+        valid = [f.samples[lm_id].valid for f in frames]
         for start, end in _invalid_runs(valid):
             length = end - start + 1
             interior = start > 0 and end < n - 1
@@ -69,18 +69,18 @@ def interpolate_gaps(gated: List[GatedFrame],
                 continue  # edge or long gap: stays unreliable, untouched
             left, right = start - 1, end + 1
             for field in COORD_FIELDS:
-                lv = getattr(out[left].samples[lm_id], field)
-                rv = getattr(out[right].samples[lm_id], field)
+                lv = getattr(frames[left].samples[lm_id], field)
+                rv = getattr(frames[right].samples[lm_id], field)
                 span = right - left
                 for pos in range(start, end + 1):
                     frac = (pos - left) / span
-                    setattr(out[pos].samples[lm_id], field,
+                    setattr(frames[pos].samples[lm_id], field,
                             lv + (rv - lv) * frac)
             for pos in range(start, end + 1):
-                out[pos].samples[lm_id].interpolated = True
-                out[pos].samples[lm_id].reliable = True
+                frames[pos].samples[lm_id].interpolated = True
+                frames[pos].samples[lm_id].reliable = True
 
-    return out
+    return frames
 
 
 def summarize_interpolation(frames: List[ProcessedFrame]) -> Dict[str, Any]:

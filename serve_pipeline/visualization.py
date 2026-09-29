@@ -25,8 +25,8 @@ def draw_pose(image_bgr: BgrImage, frame_pose: FramePose) -> BgrImage:
     h, w = out.shape[:2]
 
     if frame_pose.detected:
-        pts = [(int(round(o.x * w)), int(round(o.y * h)))
-               for o in frame_pose.landmarks]
+        pts = [(int(round(obs.x * w)), int(round(obs.y * h)))
+               for obs in frame_pose.landmarks]
         for start, end in POSE_CONNECTIONS:
             cv2.line(out, pts[start], pts[end], _BONE_COLOR, 2, cv2.LINE_AA)
         for obs, pt in zip(frame_pose.landmarks, pts):

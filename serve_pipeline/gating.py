@@ -92,7 +92,7 @@ def compute_gap_statistics(gated: List[GatedFrame],
         reasons = [g.samples[lm_id].mask_reason for g in gated]
         n_valid = sum(valid_flags)
         gaps = _find_gaps(valid_flags, frame_indices, fps)
-        longest = max((gp["length_frames"] for gp in gaps), default=0)
+        longest = max((gap["length_frames"] for gap in gaps), default=0)
         per_landmark[name] = {
             "valid_rate": n_valid / n if n else 0.0,
             "n_valid": n_valid,

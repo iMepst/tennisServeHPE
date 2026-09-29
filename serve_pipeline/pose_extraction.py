@@ -77,10 +77,10 @@ class PoseExtractor:
             return FramePose(frame_index=frame_index, time_s=time_s,
                              detected=False, landmarks=[])
 
-        image_lms = result.pose_landmarks[0]
-        if len(image_lms) != NUM_LANDMARKS:
+        pose = result.pose_landmarks[0]
+        if len(pose) != NUM_LANDMARKS:
             raise RuntimeError(
-                f"Expected {NUM_LANDMARKS} landmarks, got {len(image_lms)}"
+                f"Expected {NUM_LANDMARKS} landmarks, got {len(pose)}"
             )
 
         observations = [
@@ -89,7 +89,7 @@ class PoseExtractor:
                 x=lm.x, y=lm.y,
                 visibility=lm.visibility,
             )
-            for i, lm in enumerate(image_lms)
+            for i, lm in enumerate(pose)
         ]
         return FramePose(frame_index=frame_index, time_s=time_s,
                          detected=True, landmarks=observations)

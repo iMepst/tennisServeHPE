@@ -251,10 +251,9 @@ _TROPHY = {**_LEGS, "left_shoulder": (0.45, 0.31),
 _IMPACT = _ARMS
 
 
-def _frames_with(trophy_idx: int, impact_idx: int,
-                 n: int = 5) -> list:
+def _frames_with(trophy_idx: int, impact_idx: int) -> list:
     frames = []
-    for i in range(n):
+    for i in range(5):
         pos = _TROPHY if i == trophy_idx else _IMPACT if i == impact_idx \
             else {}
         frame = _frame(pos)

@@ -22,7 +22,7 @@ def test_ratio_is_induced_sd_over_half_width():
 def test_boundary_at_half_width():
     thetas = [0.0, 5.0, 10.0]
     half = 7.1
-    ratio, decidable, breakdown, verdict = assess_series(
+    _, decidable, breakdown, verdict = assess_series(
         [half - 0.1, half, half + 0.1], thetas, half)
     assert decidable == [True, False, False]
     assert breakdown == 5.0

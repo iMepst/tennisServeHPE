@@ -1,5 +1,3 @@
-import numpy as np
-
 from serve_pipeline.landmarks import NUM_LANDMARKS, POSE_CONNECTIONS
 from serve_pipeline.visualization import (
     draw_pose,

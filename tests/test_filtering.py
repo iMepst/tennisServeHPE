@@ -12,27 +12,26 @@ FPS = 25.0
 _VALUE_FIELDS = ["x", "y", "visibility"]
 
 
-def _sample(lm_id: int, val: float, reliable: bool = True) -> ProcessedSample:
+def _sample(lm_id: int, val: float) -> ProcessedSample:
     return ProcessedSample(
         landmark_id=lm_id, valid=True, mask_reason="ok",
-        interpolated=False, reliable=reliable, filtered=False,
+        interpolated=False, reliable=True, filtered=False,
         x=val, y=val, visibility=1.0)
 
 
-def _sine_series(freq_hz: float, n: int = 200,
-                 amp: float = 1.0) -> List[ProcessedFrame]:
+def _sine_series(freq_hz: float, n: int = 200) -> List[ProcessedFrame]:
     frames: List[ProcessedFrame] = []
     for i in range(n):
         t = i / FPS
-        val = amp * math.sin(2.0 * math.pi * freq_hz * t)
+        val = math.sin(2.0 * math.pi * freq_hz * t)
         samples = [_sample(lm, val if lm == LM else 0.0)
                    for lm in range(NUM_LANDMARKS)]
         frames.append(ProcessedFrame(frame_index=i, time_s=t, samples=samples))
     return frames
 
 
-def _amplitude(frames: List[ProcessedFrame], margin: int = 20) -> float:
-    xs = [f.samples[LM].x for f in frames[margin:len(frames) - margin]]
+def _amplitude(frames: List[ProcessedFrame]) -> float:
+    xs = [f.samples[LM].x for f in frames[20:len(frames) - 20]]
     return (max(xs) - min(xs)) / 2.0  # type: ignore[operator]
 
 

@@ -114,7 +114,7 @@ def test_impact_is_the_right_wrist_minimum() -> None:
 def test_impact_uses_the_serving_arm_wrist() -> None:
     frames = _series([0.8, 0.2, 0.6], lm_id=NAME_TO_ID["left_wrist"])
     assert detect_ball_impact(frames, "left") == (1, "ok")
-    pos, reason = detect_ball_impact(frames, "right")
+    _, reason = detect_ball_impact(frames, "right")
     assert reason == "ok"
 
 

@@ -7,11 +7,11 @@ from serve_pipeline.landmarks import NUM_LANDMARKS
 from serve_pipeline.pose_extraction import FramePose, LandmarkObservation
 
 
-def make_frame_pose(frame_index=0, time_s=0.0, detected=True, seed=None):
+def make_frame_pose(frame_index, time_s=0.0, detected=True):
     if not detected:
         return FramePose(frame_index=frame_index, time_s=time_s,
                          detected=False, landmarks=[])
-    rng = random.Random(seed if seed is not None else frame_index)
+    rng = random.Random(frame_index)
     landmarks = [
         LandmarkObservation(
             landmark_id=i,

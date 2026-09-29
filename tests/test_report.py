@@ -20,13 +20,9 @@ def _indicators(trunk: str, knee: str, elbow: str,
 
 
 def _write_clip(root: str, clip: str, plane: str, trophy: bool, impact: bool,
-                indicators: List[Dict[str, Any]], det_rate: float) -> None:
+                indicators: List[Dict[str, Any]]) -> None:
     clip_dir = os.path.join(root, clip)
-    os.makedirs(os.path.join(clip_dir, "stage1"))
-    write_metadata(os.path.join(clip_dir, "stage1", "meta.json"),
-                   {"statistics": {"detection_rate": det_rate,
-                                   "mean_visibility": 0.8,
-                                   "frames_processed": 100}})
+    os.makedirs(clip_dir)
     write_metadata(os.path.join(clip_dir, "result.json"), {
         "clip": clip,
         "clip_params": {"camera_plane": plane, "view_direction": "front"},
@@ -42,12 +38,10 @@ def _read_csv(path: str) -> List[Dict[str, str]]:
 def test_build_report_aggregates(tmp_path) -> None:
     root = str(tmp_path)
     _write_clip(root, "serve_a", "frontal", True, True,
-                _indicators("inside", "unavailable", "outside", "inside"),
-                det_rate=0.95)
+                _indicators("inside", "unavailable", "outside", "inside"))
     _write_clip(root, "serve_b", "sagittal", True, False,
                 _indicators("unavailable", "outside", "unavailable",
-                            "unavailable"),
-                det_rate=0.80)
+                            "unavailable"))
 
     report = build_report(root, os.path.join(root, "_report"),
                           make_figure=False)
@@ -67,10 +61,10 @@ def test_build_report_aggregates(tmp_path) -> None:
 def test_key_frame_candidates_need_both_events(tmp_path) -> None:
     root = str(tmp_path)
     _write_clip(root, "serve_a", "frontal", True, True,
-                _indicators("inside", "unavailable", "inside", "inside"), 0.9)
+                _indicators("inside", "unavailable", "inside", "inside"))
     _write_clip(root, "serve_b", "sagittal", True, False,
                 _indicators("unavailable", "inside", "unavailable",
-                            "unavailable"), 0.9)
+                            "unavailable"))
     open(os.path.join(root, "serve_a", "key_frames.png"), "w").close()
 
     report = build_report(root, os.path.join(root, "_report"),

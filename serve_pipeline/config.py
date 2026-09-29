@@ -14,7 +14,6 @@ _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 @dataclass
 class PipelineConfig:
-    video_dir: str = os.path.join(_REPO_ROOT, "data")
     model_path: str = os.path.join(
         _REPO_ROOT, "models", "pose_landmarker_heavy.task")
     results_root: str = os.path.join(_REPO_ROOT, "results")

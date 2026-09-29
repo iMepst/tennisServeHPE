@@ -26,7 +26,6 @@ _VALUE_FIELDS = ["x", "y", "visibility"]
 
 class LandmarkCsvWriter:
     def __init__(self, path: str) -> None:
-        self.path = path
         self._file = open(path, "w", newline="")
         self._writer = csv.writer(self._file)
         self._writer.writerow(CSV_HEADER)
@@ -222,8 +221,6 @@ def git_commit_hash() -> Optional[str]:
         commit = _git(["rev-parse", "HEAD"])
         dirty = _git(["status", "--porcelain"])
     except (OSError, subprocess.SubprocessError):
-        return None
-    if not commit:
         return None
     return f"{commit}-dirty" if dirty else commit
 

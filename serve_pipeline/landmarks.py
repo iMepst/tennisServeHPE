@@ -31,13 +31,4 @@ POSE_CONNECTIONS = [
     (24, 26), (26, 28), (28, 30), (30, 32), (28, 32),
 ]
 
-SERVE_KEY_LANDMARKS = [
-    "left_shoulder", "right_shoulder",
-    "left_elbow", "right_elbow",
-    "left_wrist", "right_wrist",
-    "left_hip", "right_hip",
-    "left_knee", "right_knee",
-    "left_ankle", "right_ankle",
-]
-
 NAME_TO_ID = {name: i for i, name in enumerate(LANDMARK_NAMES)}

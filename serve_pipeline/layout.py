@@ -1,11 +1,7 @@
 import os
 
-DEFAULT_RESULTS_ROOT = "results"
-
 STAGE1 = "stage1"
 STAGE2 = "stage2"
-
-META_JSON = "meta.json"
 
 
 def clip_from_video(video_path: str) -> str:

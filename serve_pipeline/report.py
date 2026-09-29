@@ -48,25 +48,6 @@ def find_result_jsons(results_root: str) -> List[str]:
         if os.path.basename(os.path.dirname(p)) != DEFAULT_REPORT_DIR)
 
 
-def _extraction_stats(result_path: str) -> Dict[str, Any]:
-    """Detection statistics for the clip, or empty if unavailable.
-
-    Read from <clip>/stage1/meta.json; missing meta is tolerated (detection
-    columns stay blank) so the reporter runs on any results tree.
-    """
-    clip_dir = os.path.dirname(result_path)
-    meta_path = os.path.join(clip_dir, "stage1", "meta.json")
-    if not os.path.isfile(meta_path):
-        return {}
-    stats = read_metadata(meta_path).get("statistics", {})
-    return stats if isinstance(stats, dict) else {}
-
-
-def load_clip(result_path: str) -> Dict[str, Any]:
-    data = read_metadata(result_path)
-    data["_stats"] = _extraction_stats(result_path)
-    return data
-
 def _band_bounds(rule: Rule) -> Dict[str, Optional[float]]:
     """The band bounds a criterion is judged against.
 
@@ -81,25 +62,24 @@ def _band_bounds(rule: Rule) -> Dict[str, Optional[float]]:
 def indicator_rows(clips: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     rows: List[Dict[str, Any]] = []
     for clip in clips:
-        params = clip.get("clip_params", {})
-        events = clip.get("key_events", {})
-        for ind in clip.get("indicators", []):
-            rule = _RULE_BY_ID.get(ind["criterion"])
-            bounds = (_band_bounds(rule) if rule
-                      else {"band_lo": None, "band_hi": None})
+        params = clip["clip_params"]
+        events = clip["key_events"]
+        for ind in clip["indicators"]:
+            rule = _RULE_BY_ID[ind["criterion"]]
+            bounds = _band_bounds(rule)
             rows.append({
-                "clip": clip.get("clip"),
-                "camera_plane": params.get("camera_plane"),
-                "view_direction": params.get("view_direction"),
+                "clip": clip["clip"],
+                "camera_plane": params["camera_plane"],
+                "view_direction": params["view_direction"],
                 "criterion": ind["criterion"],
                 "status": ind["status"],
-                "angle": ind.get("angle"),
+                "angle": ind["angle"],
                 "band_lo": bounds["band_lo"],
                 "band_hi": bounds["band_hi"],
-                "band_kind": rule.band_kind if rule else None,
-                "detail": ind.get("detail"),
-                "trophy_locatable": events.get("trophy_locatable"),
-                "impact_locatable": events.get("impact_locatable"),
+                "band_kind": rule.band_kind,
+                "detail": ind["detail"],
+                "trophy_locatable": events["trophy_locatable"],
+                "impact_locatable": events["impact_locatable"],
             })
     return rows
 
@@ -117,12 +97,10 @@ def key_frame_candidates(clips: List[Dict[str, Any]],
                          results_root: str) -> List[str]:
     out: List[str] = []
     for clip in clips:
-        events = clip.get("key_events", {})
-        if not (events.get("trophy_locatable") and
-                events.get("impact_locatable")):
+        events = clip["key_events"]
+        if not (events["trophy_locatable"] and events["impact_locatable"]):
             continue
-        png = os.path.join(results_root, str(clip.get("clip")),
-                           "key_frames.png")
+        png = os.path.join(results_root, clip["clip"], "key_frames.png")
         if os.path.isfile(png):
             out.append(png)
     return out
@@ -148,9 +126,9 @@ def plot_angles_vs_bands(clips: List[Dict[str, Any]], path: str,
         else:
             one_sided.append((x, rule))
         for clip in clips:
-            by_crit = {i["criterion"]: i for i in clip.get("indicators", [])}
-            ind = by_crit.get(criterion)
-            if ind is None or ind.get("angle") is None:
+            by_crit = {i["criterion"]: i for i in clip["indicators"]}
+            ind = by_crit[criterion]
+            if ind["angle"] is None:
                 continue
             color = "tab:blue" if ind["status"] == "inside" else "tab:red"
             ax.plot(x, ind["angle"], "o", color=color, alpha=0.8)
@@ -201,7 +179,7 @@ def build_report(results_root: str, out_dir: str,
         raise FileNotFoundError(
             f"no {RESULT_JSON} found under {results_root!r} "
             "(run some clips first)")
-    clips = [load_clip(p) for p in result_paths]
+    clips = [read_metadata(p) for p in result_paths]
     os.makedirs(out_dir, exist_ok=True)
 
     rows = indicator_rows(clips)

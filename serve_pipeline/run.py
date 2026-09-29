@@ -19,7 +19,6 @@ from typing import Any, Dict, List, Optional, Tuple
 from . import __version__
 from .angles import AngleReadings, compute_angles
 from .config import ClipParams
-from .interpolation import ProcessedFrame
 from .keyevents import (
     KeyEvents,
     SlowMotionFlag,
@@ -79,43 +78,25 @@ def ensure_filtered(video_path: str, outdir: str = "results",
     return filtered_csv, stage1_meta
 
 
-def _video_meta(filtered_csv: str, stage1_meta: Optional[str],
-                fps: Optional[float], frame_width: Optional[int],
-                frame_height: Optional[int]
+def _video_meta(stage1_meta: str, fps: Optional[float],
+                frame_width: Optional[int], frame_height: Optional[int]
                 ) -> Tuple[float, int, int]:
     """fps and frame size, from the extraction meta JSON unless overridden.
 
     The meta records the container fps and frame dimensions; explicit arguments
-    win (e.g. a manually corrected fps). Falls back to auto-detecting the meta
-    in the clip's stage1 folder.
+    win (e.g. a manually corrected fps).
     """
-    if stage1_meta is None:
-        clip_dir = os.path.dirname(
-            os.path.dirname(os.path.abspath(filtered_csv)))
-        candidate = os.path.join(clip_dir, "stage1", "meta.json")
-        stage1_meta = candidate if os.path.isfile(candidate) else None
-
-    video: dict = {}
-    if stage1_meta and os.path.isfile(stage1_meta):
-        video = read_metadata(stage1_meta).get("video", {})
-
-    fps = fps if fps is not None else video.get("fps")
-    frame_width = (frame_width if frame_width is not None
-                   else video.get("width"))
-    frame_height = (frame_height if frame_height is not None
-                    else video.get("height"))
-    if fps is None or frame_width is None or frame_height is None:
-        raise ValueError(
-            "fps, frame_width and frame_height must come from the extraction "
-            "meta JSON or be passed explicitly.")
-    return float(fps), int(frame_width), int(frame_height)
+    video = read_metadata(stage1_meta)["video"]
+    return (float(fps if fps is not None else video["fps"]),
+            int(frame_width if frame_width is not None else video["width"]),
+            int(frame_height if frame_height is not None
+                else video["height"]))
 
 
 @dataclass
 class ClipResult:
     clip: str
     clip_params: ClipParams
-    frames: List[ProcessedFrame]
     key_events: KeyEvents
     slow_motion: SlowMotionFlag
     angles: AngleReadings
@@ -123,13 +104,13 @@ class ClipResult:
 
 def run_clip(filtered_csv: str, serving_arm: str, front_leg: str,
              camera_plane: str, view_direction: str,
-             stage1_meta: Optional[str] = None,
+             stage1_meta: str,
              fps: Optional[float] = None,
              frame_width: Optional[int] = None,
              frame_height: Optional[int] = None) -> ClipResult:
     clip = clip_from_stage_file(filtered_csv)
     fps, frame_width, frame_height = _video_meta(
-        filtered_csv, stage1_meta, fps, frame_width, frame_height)
+        stage1_meta, fps, frame_width, frame_height)
     clip_params = ClipParams(
         serving_arm=serving_arm, front_leg=front_leg,
         camera_plane=camera_plane, view_direction=view_direction,
@@ -140,7 +121,7 @@ def run_clip(filtered_csv: str, serving_arm: str, front_leg: str,
     slow_motion = flag_possible_slow_motion(key_events, fps)
     angles = compute_angles(frames, key_events, clip_params)
 
-    return ClipResult(clip=clip, clip_params=clip_params, frames=frames,
+    return ClipResult(clip=clip, clip_params=clip_params,
                       key_events=key_events, slow_motion=slow_motion,
                       angles=angles)
 
@@ -196,8 +177,8 @@ def _angle_line(name: str, criterion: str,
     An unavailable criterion prints n/a (naming the required plane when the
     camera plane gates it), so no unassessed angle appears on the still.
     """
-    ind = by_crit.get(criterion)
-    if ind is None or ind["status"] == "unavailable" or ind["angle"] is None:
+    ind = by_crit[criterion]
+    if ind["status"] == "unavailable":
         rule = _RULE_BY_ID[criterion]
         if not plane_supported(rule, camera_plane):
             return f"{name}: n/a (needs {rule.plane})"

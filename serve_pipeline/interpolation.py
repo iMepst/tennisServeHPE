@@ -5,7 +5,6 @@ from .gating import GatedFrame
 from .landmarks import LANDMARK_NAMES, NUM_LANDMARKS
 
 COORD_FIELDS = ["x", "y"]
-PASS_FIELDS = ["visibility"]
 
 
 @dataclass

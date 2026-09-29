@@ -9,6 +9,7 @@ from typing import Any, Dict, List, Optional
 import mediapipe
 
 from . import __version__
+from .config import PipelineConfig
 from .ingestion import BgrImage, VideoReader
 from .layout import STAGE1, clip_from_video, stage_dir
 from .persistence import (
@@ -22,10 +23,7 @@ from .visualization import OverlayVideoWriter, draw_pose, save_contact_sheet
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_MODEL = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-    "models", "pose_landmarker_heavy.task",
-)
+DEFAULT_MODEL = PipelineConfig().model_path
 
 COORDINATE_NOTE = (
     "Per landmark only normalized image-plane x, y and visibility are "

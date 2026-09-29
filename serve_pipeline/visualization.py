@@ -45,7 +45,6 @@ def draw_pose(image_bgr: BgrImage, frame_pose: FramePose) -> BgrImage:
 class OverlayVideoWriter:
     def __init__(self, path: str, fps: float,
                  width: int, height: int) -> None:
-        self.path = path
         fourcc = cv2.VideoWriter.fourcc(*"mp4v")
         self._writer = cv2.VideoWriter(path, fourcc, fps, (width, height))
         if not self._writer.isOpened():
@@ -65,9 +64,8 @@ class OverlayVideoWriter:
 
 
 def label_frame(image_bgr: BgrImage, frame_pose: Optional[FramePose],
-                lines: Sequence[str],
-                draw_skeleton: bool = True) -> BgrImage:
-    if draw_skeleton and frame_pose is not None:
+                lines: Sequence[str]) -> BgrImage:
+    if frame_pose is not None:
         out = draw_pose(image_bgr, frame_pose)
     else:
         out = image_bgr.copy()
@@ -76,7 +74,7 @@ def label_frame(image_bgr: BgrImage, frame_pose: Optional[FramePose],
     widths = [cv2.getTextSize(t, cv2.FONT_HERSHEY_SIMPLEX,
                               scale, thickness)[0][0]
               for t in lines]
-    box_w = (max(widths) if widths else 0) + 2 * pad
+    box_w = max(widths) + 2 * pad
     box_h = line_h * len(lines) + 2 * pad
     cv2.rectangle(out, (x0, y0), (x0 + box_w, y0 + box_h), (0, 0, 0), -1)
     for i, text in enumerate(lines):
@@ -100,10 +98,7 @@ def _hstack_common_height(images: List[BgrImage]) -> BgrImage:
 
 def save_key_frame_stills(video_path: str, frame_poses: List[FramePose],
                           specs: Sequence[Tuple[int, Sequence[str]]],
-                          out_path: str,
-                          draw_skeleton: bool = True) -> Optional[str]:
-    if not specs:
-        return None
+                          out_path: str) -> Optional[str]:
     poses = {fp.frame_index: fp for fp in frame_poses}
     wanted = {idx for idx, _ in specs}
     images: dict = {}
@@ -113,7 +108,7 @@ def save_key_frame_stills(video_path: str, frame_poses: List[FramePose],
                 images[frame.index] = frame.image_bgr
                 if len(images) == len(wanted):
                     break
-    panels = [label_frame(images[idx], poses.get(idx), lines, draw_skeleton)
+    panels = [label_frame(images[idx], poses.get(idx), lines)
               for idx, lines in specs if idx in images]
     if not panels:
         return None

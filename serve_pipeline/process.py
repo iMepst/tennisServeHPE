@@ -9,7 +9,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from . import __version__
 from .config import PipelineConfig
 from .filtering import FilterConfig, filter_series
-from .gating import GatedFrame, compute_gap_statistics, gate_frames
+from .gating import compute_gap_statistics, gate_frames
 from .interpolation import (
     ProcessedFrame,
     interpolate_gaps,
@@ -31,33 +31,18 @@ from .plotting import (
     plot_raw_vs_filtered,
     plot_raw_vs_gated,
 )
-from .pose_extraction import FramePose
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_VISIBILITY_THRESHOLD = 0.5
-DEFAULT_MAX_GAP_MS = PipelineConfig().max_gap_ms
+_DEFAULTS = PipelineConfig()
+
+DEFAULT_VISIBILITY_THRESHOLD = _DEFAULTS.visibility_threshold
+DEFAULT_MAX_GAP_MS = _DEFAULTS.max_gap_ms
 DEFAULT_QC_COORD = "y"
 QC_WINDOW_PAD_S = 2.5
 
 GATING_META_JSON = "gating_meta.json"
 FILTERING_META_JSON = "filtering_meta.json"
-
-
-def _extraction_fps(meta_path: Optional[str],
-                    frames: List[FramePose]) -> float:
-    if meta_path and os.path.isfile(meta_path):
-        fps = read_metadata(meta_path).get("video", {}).get("fps")
-        if fps:
-            return float(fps)
-    if len(frames) >= 2:
-        dt = frames[1].time_s - frames[0].time_s
-        if dt > 0:
-            return 1.0 / dt
-    raise ValueError(
-        "Could not determine fps from meta JSON or frame timestamps; "
-        "pass the Stage 1 --meta explicitly."
-    )
 
 
 def run_gating(landmarks_csv: str, outdir: Optional[str] = None,
@@ -69,11 +54,10 @@ def run_gating(landmarks_csv: str, outdir: Optional[str] = None,
         outdir = sibling_stage_dir(landmarks_csv, STAGE2)
     os.makedirs(outdir, exist_ok=True)
     if meta_path is None:
-        candidate = os.path.join(os.path.dirname(landmarks_csv), "meta.json")
-        meta_path = candidate if os.path.isfile(candidate) else None
+        meta_path = os.path.join(os.path.dirname(landmarks_csv), "meta.json")
 
     frames = read_landmarks_csv(landmarks_csv)
-    fps = _extraction_fps(meta_path, frames)
+    fps = float(read_metadata(meta_path)["video"]["fps"])
 
     gated = gate_frames(frames, visibility_threshold)
     gap_stats = compute_gap_statistics(gated, fps)
@@ -94,7 +78,7 @@ def run_gating(landmarks_csv: str, outdir: Optional[str] = None,
         "commit": git_commit_hash(),
         "created_utc": now.isoformat(),
         "input_landmarks_csv": os.path.abspath(landmarks_csv),
-        "input_meta_json": os.path.abspath(meta_path) if meta_path else None,
+        "input_meta_json": os.path.abspath(meta_path),
         "parameters": {
             "visibility_threshold": visibility_threshold,
             "fps": fps,
@@ -122,20 +106,6 @@ def run_gating(landmarks_csv: str, outdir: Optional[str] = None,
     for name, rate in gap_stats["lowest_valid_rate"].items():
         logger.info("    lowest: %-14s %.1f%%", name, rate * 100.0)
     return meta
-
-
-def _gating_fps(meta_path: Optional[str],
-                gated: List[GatedFrame]) -> float:
-    if meta_path and os.path.isfile(meta_path):
-        fps = read_metadata(meta_path).get("parameters", {}).get("fps")
-        if fps:
-            return float(fps)
-    if len(gated) >= 2:
-        dt = gated[1].time_s - gated[0].time_s
-        if dt > 0:
-            return 1.0 / dt
-    raise ValueError(
-        "Could not determine fps from Stage 2a meta or gated timestamps.")
 
 
 def _peak_motion_window(
@@ -195,14 +165,12 @@ def run_filtering(gated_csv: str, outdir: Optional[str] = None,
         outdir = os.path.dirname(os.path.abspath(gated_csv))
     os.makedirs(outdir, exist_ok=True)
     if meta_path is None:
-        candidate = os.path.join(os.path.dirname(gated_csv),
-                                 GATING_META_JSON)
-        meta_path = candidate if os.path.isfile(candidate) else None
+        meta_path = os.path.join(os.path.dirname(gated_csv), GATING_META_JSON)
     if filter_cfg is None:
         filter_cfg = FilterConfig()
 
     gated = read_gated_csv(gated_csv)
-    fps = _gating_fps(meta_path, gated)
+    fps = float(read_metadata(meta_path)["parameters"]["fps"])
     # The gap bound is defined in time; convert it to this clip's frames so
     # the same physical gap length holds at any frame rate.
     max_gap_frames = round(max_gap_ms / 1000.0 * fps)
@@ -230,8 +198,7 @@ def run_filtering(gated_csv: str, outdir: Optional[str] = None,
         "commit": git_commit_hash(),
         "created_utc": now.isoformat(),
         "input_gated_csv": os.path.abspath(gated_csv),
-        "input_gating_meta_json": (
-            os.path.abspath(meta_path) if meta_path else None),
+        "input_gating_meta_json": os.path.abspath(meta_path),
         "parameters": {
             "max_gap_ms": max_gap_ms,
             "max_gap_frames": max_gap_frames,

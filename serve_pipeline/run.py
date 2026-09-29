@@ -60,20 +60,17 @@ def ensure_filtered(video_path: str, outdir: str = "results",
     gating_meta = os.path.join(stage2_dir, GATING_META_JSON)
     filtered_csv = os.path.join(stage2_dir, "filtered.csv")
 
-    # Pose extraction (the slow step).
     if reuse and os.path.isfile(landmarks_csv):
         logger.info("extraction: reusing %s", landmarks_csv)
     else:
         run_extraction(video_path, outdir=outdir,
                        model_path=model_path or DEFAULT_MODEL)
 
-    # Visibility gating.
     if reuse and os.path.isfile(gated_csv):
         logger.info("gating: reusing %s", gated_csv)
     else:
         run_gating(landmarks_csv, meta_path=stage1_meta)
 
-    # Interpolation + low-pass filtering.
     if reuse and os.path.isfile(filtered_csv):
         logger.info("filtering: reusing %s", filtered_csv)
     else:
@@ -116,7 +113,6 @@ def _resolve_video_meta(filtered_csv: str, stage1_meta: Optional[str],
 
 @dataclass
 class ClipResult:
-    """In-memory result for one clip (indicators added later)."""
     clip: str
     clip_params: ClipParams
     frames: List[ProcessedFrame]
@@ -131,12 +127,6 @@ def run_clip(filtered_csv: str, serving_arm: str, front_leg: str,
              fps: Optional[float] = None,
              frame_width: Optional[int] = None,
              frame_height: Optional[int] = None) -> ClipResult:
-    """Run key-event detection and angle computation on a filtered trajectory.
-
-    The manual per-clip parameters (anatomical serving arm / front leg, camera
-    plane, view direction) are recorded by hand; fps and frame size default to
-    the extraction meta. Returns the key events, slow-motion flag and angles.
-    """
     clip = clip_from_stage_file(filtered_csv)
     fps, frame_width, frame_height = _resolve_video_meta(
         filtered_csv, stage1_meta, fps, frame_width, frame_height)
@@ -219,13 +209,6 @@ def write_key_frame_stills(video_path: str, stage1_meta: str,
                            filtered_csv: str,
                            result: ClipResult,
                            indicators: List[Dict[str, Any]]) -> Optional[str]:
-    """Render results/<clip>/key_frames.png: the trophy and impact stills.
-
-    Reads the raw landmarks for the pose overlay and the located key frames
-    from the result, labels each with the angles assessed at it (n/a where the
-    indicator is unavailable), and tiles them side by side. Returns None when
-    neither key frame was locatable.
-    """
     ev = result.key_events
     by_crit = {i["criterion"]: i for i in indicators}
     plane = result.clip_params.camera_plane
@@ -288,11 +271,6 @@ def process_clip(video_path: str, serving_arm: str, front_leg: str,
                  fps: Optional[float] = None,
                  frame_width: Optional[int] = None,
                  frame_height: Optional[int] = None) -> str:
-    """Run one clip end to end; returns the result JSON path.
-
-    Extraction/gating/filtering run (or reuse) on disk; the rest runs in memory.
-    fps and frame size default to the extraction meta and can be overridden.
-    """
     filtered_csv, stage1_meta = ensure_filtered(
         video_path, outdir=outdir, reuse=reuse, model_path=model_path)
     result = run_clip(filtered_csv, serving_arm, front_leg, camera_plane,

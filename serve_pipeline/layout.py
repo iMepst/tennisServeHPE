@@ -9,7 +9,6 @@ META_JSON = "meta.json"
 
 
 def clip_from_video(video_path: str) -> str:
-    """Clip id from a video path (serve_01.mp4 -> serve_01)."""
     return os.path.splitext(os.path.basename(video_path))[0]
 
 
@@ -21,11 +20,9 @@ def clip_from_stage_file(path: str) -> str:
 
 
 def stage_dir(results_root: str, clip: str, stage: str) -> str:
-    """The directory a given stage writes into for a given clip."""
     return os.path.join(results_root, clip, stage)
 
 
 def sibling_stage_dir(stage_file: str, stage: str) -> str:
-    """A sibling stage folder next to a file, e.g. stage1 CSV -> stage2 dir."""
     clip_dir = os.path.dirname(os.path.dirname(os.path.abspath(stage_file)))
     return os.path.join(clip_dir, stage)

@@ -15,10 +15,8 @@ CSV_HEADER = [
     "x", "y", "visibility",
 ]
 
-# Gated series: raw schema plus the gating decision.
 GATED_CSV_HEADER = CSV_HEADER + ["valid", "mask_reason"]
 
-# Filtered series: gated schema plus the processing flags.
 FILTERED_CSV_HEADER = GATED_CSV_HEADER + [
     "interpolated", "reliable", "filtered",
 ]
@@ -27,8 +25,6 @@ _VALUE_FIELDS = ["x", "y", "visibility"]
 
 
 class LandmarkCsvWriter:
-    """Streaming writer: call write_frame() once per video frame."""
-
     def __init__(self, path: str) -> None:
         self.path = path
         self._file = open(path, "w", newline="")
@@ -65,11 +61,6 @@ class LandmarkCsvWriter:
 def read_landmarks_csv(path: str,
                        frame_indices: Optional[Set[int]] = None
                        ) -> List[FramePose]:
-    """Reads a landmarks CSV back into a list of FramePose objects.
-
-    When frame_indices is given, only those frames are parsed; every other
-    row is skipped (used when just a few key frames are needed).
-    """
     frames: Dict[int, FramePose] = {}
     with open(path, newline="") as f:
         reader = csv.DictReader(f)
@@ -109,7 +100,6 @@ def _fmt(v: Optional[float]) -> str:
 
 
 def write_gated_csv(path: str, gated: List[GatedFrame]) -> None:
-    """Persist the gated series (raw schema + valid/mask_reason)."""
     with open(path, "w", newline="") as f:
         writer = csv.writer(f)
         writer.writerow(GATED_CSV_HEADER)
@@ -124,7 +114,6 @@ def write_gated_csv(path: str, gated: List[GatedFrame]) -> None:
 
 
 def read_gated_csv(path: str) -> List[GatedFrame]:
-    """Read a gated CSV back into GatedFrame objects (round-trips write)."""
     frames: Dict[int, GatedFrame] = {}
     with open(path, newline="") as f:
         reader = csv.DictReader(f)
@@ -159,7 +148,6 @@ def _bit(flag: bool) -> int:
 
 
 def write_filtered_csv(path: str, frames: List[ProcessedFrame]) -> None:
-    """Persist the filtered series (gated schema + processing flags)."""
     with open(path, "w", newline="") as f:
         writer = csv.writer(f)
         writer.writerow(FILTERED_CSV_HEADER)
@@ -176,7 +164,6 @@ def write_filtered_csv(path: str, frames: List[ProcessedFrame]) -> None:
 
 
 def read_filtered_csv(path: str) -> List[ProcessedFrame]:
-    """Read a filtered CSV back into ProcessedFrame objects."""
     frames: Dict[int, ProcessedFrame] = {}
     with open(path, newline="") as f:
         reader = csv.DictReader(f)
@@ -222,7 +209,6 @@ def read_metadata(path: str) -> Dict[str, Any]:
 
 
 def git_commit_hash() -> Optional[str]:
-    """Return the producing commit hash for provenance in metadata."""
     repo_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
     def _git(args: List[str]) -> str:
@@ -244,7 +230,6 @@ def git_commit_hash() -> Optional[str]:
 
 def summarize_extraction(
         frame_poses: List[FramePose]) -> Dict[str, Any]:
-    """Aggregate sanity-check numbers for the run report / metadata JSON."""
     n = len(frame_poses)
     detected = [fp for fp in frame_poses if fp.detected]
     per_landmark_visibility: Dict[str, float] = {}

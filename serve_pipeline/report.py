@@ -42,7 +42,6 @@ KNEE_PLAUSIBILITY_CAP_DEG = 150.0
 
 
 def find_result_jsons(results_root: str) -> List[str]:
-    """Every results/<clip>/result.json, sorted, skipping the report dir."""
     pattern = os.path.join(results_root, "*", RESULT_JSON)
     return sorted(
         p for p in glob.glob(pattern)
@@ -64,7 +63,6 @@ def _extraction_stats(result_path: str) -> Dict[str, Any]:
 
 
 def load_clip(result_path: str) -> Dict[str, Any]:
-    """One clip's result.json joined with its detection statistics."""
     data = read_metadata(result_path)
     data["_stats"] = _extraction_stats(result_path)
     return data
@@ -81,7 +79,6 @@ def _band_bounds(rule: Rule) -> Dict[str, Optional[float]]:
 
 
 def indicator_rows(clips: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """Long-form rows, one per (clip, criterion), joined with the bands."""
     rows: List[Dict[str, Any]] = []
     for clip in clips:
         params = clip.get("clip_params", {})
@@ -118,11 +115,6 @@ def write_csv(path: str, header: List[str],
 
 def key_frame_candidates(clips: List[Dict[str, Any]],
                          results_root: str) -> List[str]:
-    """key_frames.png paths for clips with both events located.
-
-    Both events means the still shows a trophy and an impact panel. Returned
-    for the author to pick one frontal and one sagittal from.
-    """
     out: List[str] = []
     for clip in clips:
         events = clip.get("key_events", {})
@@ -138,13 +130,6 @@ def key_frame_candidates(clips: List[Dict[str, Any]],
 def plot_angles_vs_bands(clips: List[Dict[str, Any]], path: str,
                          knee_cap_deg: float = KNEE_PLAUSIBILITY_CAP_DEG
                          ) -> str:
-    """Measured angle per clip against each criterion's band (one figure).
-
-    Same matplotlib-Agg pattern as plotting.py. Each criterion is a column;
-    its band is shaded (a lower-bound band shades upward from its threshold),
-    and every clip's measured angle is a point. Criteria a clip could not
-    read contribute no point.
-    """
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
@@ -211,10 +196,6 @@ _INDICATOR_HEADER = [
 
 def build_report(results_root: str, out_dir: str,
                  make_figure: bool = True) -> Dict[str, Any]:
-    """Aggregate every result.json under results_root into out_dir.
-
-    Returns the written paths and the key-frame figure candidates.
-    """
     result_paths = find_result_jsons(results_root)
     if not result_paths:
         raise FileNotFoundError(

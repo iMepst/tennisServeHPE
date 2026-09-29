@@ -9,7 +9,6 @@ import os
 from dataclasses import dataclass
 from typing import Tuple
 
-# Repository root, so the defaults work from any working directory.
 _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
@@ -53,7 +52,6 @@ class PipelineConfig:
     sigma: float = 3.0
     sigma_sweep: Tuple[float, ...] = (2.0, 3.0, 4.0, 5.0, 6.0)
 
-    # Monte Carlo sample count and RNG seed.
     mc_samples: int = 10000
     seed: int = 42
 

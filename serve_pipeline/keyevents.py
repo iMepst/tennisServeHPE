@@ -88,7 +88,6 @@ def detect_trophy(frames: List[ProcessedFrame],
 
 @dataclass
 class KeyEvents:
-    """The two key frames, or why they are not locatable."""
     trophy_frame: Optional[int]
     impact_frame: Optional[int]
     trophy_locatable: bool
@@ -129,7 +128,6 @@ def detect_key_events(frames: List[ProcessedFrame],
 
 @dataclass
 class SlowMotionFlag:
-    """QC diagnostic result; assessable is False when an event is missing."""
     assessable: bool
     likely_slow_motion: bool
     trophy_to_impact_s: Optional[float]

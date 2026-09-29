@@ -17,7 +17,6 @@ from .landmarks import NAME_TO_ID
 
 def pixel_point(x: float, y: float,
                 clip_params: ClipParams) -> Tuple[float, float]:
-    """Rescale a normalized landmark position to pixels; depth is discarded."""
     return x * clip_params.frame_width, y * clip_params.frame_height
 
 
@@ -119,7 +118,6 @@ def shoulder_elevation(frame: ProcessedFrame,
 
 def body_midpoint(frame: ProcessedFrame, left_name: str, right_name: str,
                   clip_params: ClipParams) -> Tuple[float, float]:
-    """Pixel midpoint of a left/right landmark pair (trunk-axis ends, R1)."""
     lx, ly = landmark_pixel(frame, left_name, clip_params)
     rx, ry = landmark_pixel(frame, right_name, clip_params)
     return (lx + rx) / 2.0, (ly + ry) / 2.0
@@ -157,7 +155,6 @@ class AngleReadings:
 
 def _frame_at(frames: List[ProcessedFrame],
               frame_index: int) -> ProcessedFrame:
-    """The frame carrying frame_index (looked up by index, not positional)."""
     for frame in frames:
         if frame.frame_index == frame_index:
             return frame
@@ -166,7 +163,6 @@ def _frame_at(frames: List[ProcessedFrame],
 
 def _gated(frame: ProcessedFrame, names: List[str],
            reader: Callable[[ProcessedFrame], float]) -> Optional[float]:
-    """Read the angle only when its landmarks pass the availability gate, else None."""
     if not landmarks_reliable(frame, names):
         return None
     return reader(frame)

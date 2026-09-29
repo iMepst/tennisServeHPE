@@ -12,20 +12,13 @@ N = 25
 
 
 def _synthetic_frames() -> List[ProcessedFrame]:
-    """A tiny reliable clip with a clear wrist minimum and pelvis maximum.
-
-    Every landmark is reliable and distinctly placed (so the angles are
-    non-degenerate); the racket wrist dips to a unique minimum at frame 18
-    (ball impact) and the two hips rise to a unique maximum at frame 8
-    (trophy, before impact).
-    """
     wrist_id = NAME_TO_ID["right_wrist"]
     hip_ids = (NAME_TO_ID["left_hip"], NAME_TO_ID["right_hip"])
 
     wrist_y = [0.6] * N
-    wrist_y[17], wrist_y[18], wrist_y[19] = 0.2, 0.1, 0.2  # min at 18
+    wrist_y[17], wrist_y[18], wrist_y[19] = 0.2, 0.1, 0.2
     hip_y = [0.5] * N
-    hip_y[7], hip_y[8], hip_y[9] = 0.65, 0.70, 0.65        # max at 8
+    hip_y[7], hip_y[8], hip_y[9] = 0.65, 0.70, 0.65
 
     frames: List[ProcessedFrame] = []
     for i in range(N):
@@ -47,12 +40,10 @@ def _synthetic_frames() -> List[ProcessedFrame]:
 
 
 def _setup_clip(results_root: str, clip: str) -> None:
-    """Lay down the Stage 1/2 outputs so process_clip reuses them."""
     stage1 = os.path.join(results_root, clip, "stage1")
     stage2 = os.path.join(results_root, clip, "stage2")
     os.makedirs(stage1)
     os.makedirs(stage2)
-    # Markers whose presence makes ensure_filtered skip Stages 1/2a.
     open(os.path.join(stage1, "landmarks.csv"), "w").close()
     open(os.path.join(stage2, "gated.csv"), "w").close()
     write_metadata(os.path.join(stage1, "meta.json"),
@@ -76,17 +67,14 @@ def test_process_clip_writes_result_json(tmp_path) -> None:
     with open(out_path) as f:
         result = json.load(f)
 
-    # Top-level record.
     assert set(result) >= {
         "clip", "pipeline_version", "created_utc", "clip_params",
         "key_events", "slow_motion", "angles", "indicators"}
     assert result["clip"] == clip
 
-    # Key events located on the planted extrema.
     assert result["key_events"]["trophy_frame"] == 8
     assert result["key_events"]["impact_frame"] == 18
 
-    # One indicator per rule; the frontal plane reads trunk, not the knee.
     by_criterion = {i["criterion"]: i for i in result["indicators"]}
     assert set(by_criterion) == {
         "trunk_inclination", "front_knee_flexion",

@@ -8,7 +8,6 @@ from serve_pipeline.pose_extraction import FramePose, LandmarkObservation
 
 
 def make_frame_pose(frame_index=0, time_s=0.0, detected=True, seed=None):
-    """Synthetic FramePose with plausible value ranges for tests."""
     if not detected:
         return FramePose(frame_index=frame_index, time_s=time_s,
                          detected=False, landmarks=[])

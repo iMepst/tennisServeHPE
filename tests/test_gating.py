@@ -17,7 +17,6 @@ _VALUE_FIELDS = ["x", "y", "visibility"]
 
 def _detected(idx: int,
               vis_overrides: Optional[Dict[int, float]] = None) -> FramePose:
-    """Detected frame with all landmarks visible except given overrides."""
     vis_overrides = vis_overrides or {}
     lms = [
         LandmarkObservation(
@@ -45,7 +44,6 @@ def test_low_visibility_is_masked_others_untouched() -> None:
     samples = gated[0].samples
     assert samples[14].valid is False
     assert samples[14].mask_reason == MASK_LOW_VISIBILITY
-    # every other landmark stays valid
     assert all(samples[i].valid for i in range(NUM_LANDMARKS) if i != 14)
     assert samples[13].mask_reason == MASK_OK
 
@@ -54,15 +52,14 @@ def test_threshold_is_inclusive_lower_bound() -> None:
     gated = gate_frames([_detected(0, {0: 0.5, 1: 0.4999})],
                         visibility_threshold=0.5)
     samples = gated[0].samples
-    assert samples[0].valid is True          # exactly at threshold -> valid
-    assert samples[1].valid is False         # just below -> invalid
+    assert samples[0].valid is True
+    assert samples[1].valid is False
 
 
 def test_keep_and_flag_preserves_masked_values() -> None:
     gated = gate_frames([_detected(0, {16: 0.1})], visibility_threshold=0.5)
     masked = gated[0].samples[16]
     assert masked.valid is False
-    # values are kept, not blanked
     assert masked.visibility == 0.1
     assert masked.x == 0.1 + 16
     assert masked.y == 0.2 + 16
@@ -87,7 +84,6 @@ def test_output_is_dense_and_ordered() -> None:
 
 
 def test_single_gap_length_and_bounds() -> None:
-    # landmark 16 invalid on frames 3,4,5 out of 0..9
     frames = [
         _detected(i, {16: 0.1}) if i in (3, 4, 5) else _detected(i)
         for i in range(10)
@@ -106,7 +102,7 @@ def test_single_gap_length_and_bounds() -> None:
 
 
 def test_multiple_gaps_and_longest() -> None:
-    invalid = {2, 5, 6}  # a length-1 gap and a length-2 gap
+    invalid = {2, 5, 6}
     frames = [
         _detected(i, {16: 0.1}) if i in invalid else _detected(i)
         for i in range(8)
@@ -137,17 +133,16 @@ def test_all_invalid_is_one_full_length_gap() -> None:
 
 def test_reason_counts_split_undetected_and_low_vis() -> None:
     frames = [
-        _detected(0, {16: 0.1}),   # low vis
-        _undetected(1),            # undetected
-        _detected(2),              # valid
-        _detected(3, {16: 0.2}),   # low vis
+        _detected(0, {16: 0.1}),
+        _undetected(1),
+        _detected(2),
+        _detected(3, {16: 0.2}),
     ]
     lm = _lm_stats(compute_gap_statistics(gate_frames(frames, 0.5), FPS),
                    LANDMARK_NAMES[16])
     assert lm["n_undetected"] == 1
     assert lm["n_low_visibility"] == 2
     assert lm["n_valid"] == 1
-    # frames 0,1 form one gap (mixed reasons), frame 3 another
     assert lm["num_gaps"] == 2
 
 

@@ -18,7 +18,7 @@ def _fast_config() -> PipelineConfig:
     Monte-Carlo precision, so shrink the samples and the two sweeps."""
     config = PipelineConfig()
     config.mc_samples = 200
-    config.theta_step = 15.0            # thetas 0, 15, 30, 45
+    config.theta_step = 15.0
     config.sigma_sweep = (2.0, 4.0)
     return config
 
@@ -46,19 +46,16 @@ def test_build_report_writes_all_artifacts_without_events(tmp_path):
         results_root=str(tmp_path / "results"), out_dir=out_dir,
         make_figures=False)
 
-    # The five tables are the removed-methodology-safe set: no
-    # sigma_estimate.json, no decision_instability.csv.
     names = set(os.listdir(out_dir))
     assert names == {"projection_curves.csv", "noise_propagation.csv",
                      "decidability.csv", "event_error.json", "run_meta.json"}
 
     n_crit = len(RULES)
-    n_theta = 4          # 0, 15, 30, 45
-    n_sigma = 2          # (2.0, 4.0)
+    n_theta = 4
+    n_sigma = 2
 
     proj = _read_csv(report["outputs"]["projection_curves"])
     assert len(proj) == n_crit * n_theta
-    # Trunk is the closed-form criterion; the joints are numeric.
     kinds = {r["criterion"]: r["kind"] for r in proj}
     assert kinds["trunk_inclination"] == "closed_form"
     assert kinds["elbow_flexion"] == "numeric"
@@ -71,15 +68,12 @@ def test_build_report_writes_all_artifacts_without_events(tmp_path):
     assert len(dec) == n_crit * n_theta * n_sigma
     assert {r["verdict"] for r in dec} <= {"decidable", "unreliable"}
 
-    # Exact column headers, so a schema change is caught here.
     assert _header(report["outputs"]["projection_curves"]) == _PROJECTION_HEADER
     assert _header(report["outputs"]["noise_propagation"]) == _NOISE_HEADER
     assert _header(report["outputs"]["decidability"]) == _DECIDABILITY_HEADER
 
 
 def test_removed_artifacts_are_not_written(tmp_path):
-    # The methodology revision dropped these two; the reporter must never emit
-    # them, in the out dir or the figures subdir.
     config = _fast_config()
     out_dir = str(tmp_path / "assessment")
     build_assessment_report(config, annotations_dir=str(tmp_path / "none"),
@@ -93,7 +87,6 @@ def test_removed_artifacts_are_not_written(tmp_path):
 
 
 def test_runs_headless(tmp_path):
-    # Building the figures must not need a display: the Agg backend is selected.
     import matplotlib
     config = _fast_config()
     build_assessment_report(config, annotations_dir=str(tmp_path / "none"),
@@ -115,19 +108,15 @@ def test_build_report_writes_figures(tmp_path):
     figs = set(os.listdir(fig_dir))
     assert figs == {"projection_curves.png", "spread_vs_theta.png",
                     "decidability_map.png"}
-    # The figure paths are logged in the report outputs and reproducible.
     assert "decidability_figure" in report["outputs"]
     for name in ("projection_curves.png", "spread_vs_theta.png",
                  "decidability_map.png"):
         assert os.path.getsize(os.path.join(fig_dir, name)) > 0
-    # Missing events.csv: the placeholder is written, yet every figure is
-    # still produced (the figures do not depend on E3).
     ev = _read_json(os.path.join(out_dir, "event_error.json"))
     assert ev["placeholder"] is True
 
 
 def test_reproducible_numbers_across_runs(tmp_path):
-    # Same seed and parameters -> byte-identical tables on a rerun.
     config = _fast_config()
     a = build_assessment_report(config, annotations_dir=str(tmp_path / "none"),
                                 results_root=str(tmp_path / "r"),
@@ -147,8 +136,6 @@ def test_event_error_placeholder_when_missing(tmp_path):
                             results_root=str(tmp_path / "results"),
                             out_dir=out_dir, make_figures=False)
     ev = _read_json(os.path.join(out_dir, "event_error.json"))
-    # A missing CSV must read as a clearly-marked placeholder, never a zero
-    # rate: no move-rate fields at all, just the flags and the note.
     assert ev["available"] is False
     assert ev["placeholder"] is True
     assert "note" in ev
@@ -168,18 +155,15 @@ def test_run_meta_logs_every_parameter(tmp_path):
     assert meta["theta_range"] == [0.0, 45.0]
     assert meta["event_tolerances_frames"] == list(
         config.event_tolerances_frames)
-    # Exact key set, so a dropped parameter is caught here.
     assert set(meta) == {
         "theta_range", "theta_step", "thetas", "sigma", "sigma_sweep",
         "mc_samples", "seed", "reference_stature_px",
         "event_tolerances_frames", "event_large_offset_frames", "timestamp",
         "outputs", "notes"}
-    # E4 is recorded as deliberately unquantified, never given a number.
     assert "e4_definitional_mismatch" in meta["notes"]
 
 
 def test_event_error_dict_serialises_robust_stats():
-    # A heavy-tailed impact series: robust fields lead, mean is secondary.
     impact = _event_type_error("impact", [0, -1, 1, 200],
                                tolerances=(1, 3), large_offset_frames=30)
     trophy = _event_type_error("trophy", [0, 0, 0, 0],
@@ -194,9 +178,8 @@ def test_event_error_dict_serialises_robust_stats():
         "iqr_offset", "max_abs_offset", "large_offset_frames",
         "n_large_failures", "mean_offset"}
     assert d["impact"]["n_large_failures"] == 1
-    # JSON keys are strings; both tolerances are present.
     assert set(d["impact"]["move_rate_by_tolerance"]) == {"1", "3"}
-    assert d["impact"]["median_offset"] == 0.5   # robust to the |200| tail
+    assert d["impact"]["median_offset"] == 0.5
 
 
 def _decidability(criterion, verdict, breakdown):
@@ -209,8 +192,6 @@ def _decidability(criterion, verdict, breakdown):
 
 
 def test_unreliable_onset_takes_first_ascending_sigma():
-    # A criterion decidable at sigma 2 but unreliable from sigma 4 onward:
-    # its onset must be the first sigma that fails, with that theta.
     sweep = [
         SigmaPoint(sigma=2.0, propagation=[],
                    decidability=[_decidability("elbow_flexion", "decidable",
@@ -225,7 +206,6 @@ def test_unreliable_onset_takes_first_ascending_sigma():
     onset = _unreliable_onset(sweep)
     assert onset["elbow_flexion"] == {"sigma": 4.0, "theta": 30.0}
 
-    # The onset is repeated on every row of that criterion in the CSV rows.
     rows = decidability_rows(sweep)
     assert all(r["onset_sigma"] == 4.0 for r in rows)
     assert all(r["onset_theta"] == 30.0 for r in rows)

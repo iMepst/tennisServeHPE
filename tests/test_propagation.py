@@ -20,8 +20,6 @@ def test_spread_grows_with_sigma():
 
 
 def test_arm_segments_scatter_more_than_trunk_and_leg():
-    # A fixed pixel error subtends a larger angle on the shorter arm
-    # segments than on the longer trunk and leg segments.
     config = PipelineConfig()
     trunk = _sd("trunk_inclination", 0.0, config.sigma, config)
     knee = _sd("front_knee_flexion", 0.0, config.sigma, config)
@@ -33,7 +31,6 @@ def test_arm_segments_scatter_more_than_trunk_and_leg():
 
 
 def test_mean_is_unbiased_at_theta_zero():
-    # Without projection, the noisy readings centre on the true angle.
     config = PipelineConfig()
     spread = angular_spread("elbow_flexion", _MEAN["elbow_flexion"], 0.0,
                             config.sigma, config)

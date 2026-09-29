@@ -10,12 +10,7 @@ from serve_pipeline.config import PipelineConfig
 
 
 def _direct_trunk_projection(a_true: float, theta: float) -> float:
-    """Independent numeric projection of a single trunk segment.
-
-    Builds the trunk axis at a_true from the vertical, tilts it by theta and
-    projects it, then reads the angle back against the vertical -- an
-    independent path to compare the closed form against.
-    """
+    """Independent numeric projection of a single trunk segment."""
     a = math.radians(a_true)
     axis = (math.sin(a), math.cos(a), 0.0)
     px, py = project_orthographic(_tilt_about_vertical(axis, theta))
@@ -30,20 +25,17 @@ def test_trunk_closed_form_matches_direct_numeric(a_true, theta):
 
 
 def test_known_theta_foreshortening():
-    # tan(a_proj) = tan(a_true) * cos(theta); check the 45 deg value directly.
     expected = math.degrees(math.atan(math.tan(math.radians(25.0))
                                       * math.cos(math.radians(45.0))))
     assert trunk_projected_angle(25.0, 45.0) == pytest.approx(expected)
 
 
 def test_theta_zero_returns_true_angle():
-    # No foreshortening at theta = 0 for either projection model.
     assert trunk_projected_angle(25.0, 0.0) == pytest.approx(25.0)
     assert numeric_projected_angle(64.5, 0.0) == pytest.approx(64.5)
 
 
 def test_projection_reduces_angle_with_theta():
-    # A larger viewpoint tilt foreshortens the projected angle.
     assert numeric_projected_angle(29.2, 45.0) < numeric_projected_angle(29.2, 0.0)
 
 
@@ -52,5 +44,4 @@ def test_projection_curves_cover_four_criteria():
     assert len(curves) == 4
     for c in curves:
         assert len(c.projected) == len(theta_values(PipelineConfig()))
-        # Each curve starts at its true angle (theta = 0).
         assert c.projected[0] == pytest.approx(c.a_true)

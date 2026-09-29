@@ -20,7 +20,6 @@ def test_ratio_is_induced_sd_over_half_width():
 
 
 def test_boundary_at_half_width():
-    # Decidable strictly below the half-width; reaching it flips the verdict.
     thetas = [0.0, 5.0, 10.0]
     half = 7.1
     ratio, decidable, breakdown, verdict = assess_series(

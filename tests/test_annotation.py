@@ -12,10 +12,9 @@ from serve_pipeline.interpolation import ProcessedFrame, ProcessedSample
 from serve_pipeline.landmarks import NAME_TO_ID, NUM_LANDMARKS
 from serve_pipeline.persistence import write_filtered_csv, write_metadata
 
-_W, _H = 1000, 1000  # frame size chosen so px = normalized * 1000.
+_W, _H = 1000, 1000
 
 
-# E3: event error
 _CLIP_PARAMS = {
     "serving_arm": "right", "front_leg": "left", "camera_plane": "frontal",
     "view_direction": "back", "fps": 25.0,
@@ -26,8 +25,6 @@ _HIPS = (NAME_TO_ID["left_hip"], NAME_TO_ID["right_hip"])
 
 
 def _event_frame(i, wrist_y, hip_y, wrist_reliable=True):
-    """One dense filtered frame; serving wrist and both hips carry the given
-    y, everything else a constant reliable 0.5."""
     samples = []
     for lm in range(NUM_LANDMARKS):
         if lm == _WRIST and not wrist_reliable:
@@ -44,9 +41,6 @@ def _event_frame(i, wrist_y, hip_y, wrist_reliable=True):
 
 
 def _make_event_clip(results_root, clip, locatable=True):
-    """A clip whose detection gives trophy at frame 2, impact at frame 7,
-    or an unlocatable clip (serving wrist unreliable throughout)."""
-    # Mid-hip max (pelvis low point) at frame 2; wrist min (contact) at 7.
     hip_ys = [0.5, 0.6, 0.9, 0.6, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5]
     wrist_ys = [0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.1, 0.5, 0.5]
     frames = [_event_frame(i, wrist_ys[i], hip_ys[i],
@@ -68,16 +62,13 @@ def test_read_event_annotations_rejects_bad_schema(tmp_path):
 
 
 def test_event_type_error_rate_and_distribution():
-    # Offsets in frames; None marks a not-locatable event.
     err = _event_type_error("trophy", [0, 2, -3, None],
                             tolerances=(1, 3), large_offset_frames=30)
     assert err.n_clips == 4
     assert err.n_locatable == 3
     assert err.n_not_locatable == 1
-    # tol 1: |2| and |-3| exceed -> 2 moved; tol 3: neither exceeds -> 0 moved.
     assert err.n_moved_by_tolerance[1] == 2
     assert err.n_moved_by_tolerance[3] == 0
-    # 2 moved + 1 not locatable at tol 1; only the not-locatable one at tol 3.
     assert err.move_rate_by_tolerance[1] == pytest.approx(3 / 4)
     assert err.move_rate_by_tolerance[3] == pytest.approx(1 / 4)
     assert err.max_abs_offset == 3.0
@@ -86,21 +77,19 @@ def test_event_type_error_rate_and_distribution():
 
 
 def test_event_type_error_robust_to_heavy_tail():
-    # One catastrophic miss must register as a large failure and drag the
-    # mean, while the median and IQR stay near the well-timed bulk.
     err = _event_type_error("impact", [0, -1, 1, 0, 200],
                             tolerances=(1,), large_offset_frames=30)
-    assert err.n_large_failures == 1               # only |200| >= 30
-    assert err.median_offset == 0.0                # robust to the tail
+    assert err.n_large_failures == 1
+    assert err.median_offset == 0.0
     assert err.max_abs_offset == 200.0
-    assert err.mean_offset == pytest.approx(40.0)  # mean dragged up by tail
+    assert err.mean_offset == pytest.approx(40.0)
     assert not math.isnan(err.iqr_offset)
     assert err.iqr_offset < err.max_abs_offset
 
 
 def test_estimate_event_error_offsets(tmp_path):
     results_root = str(tmp_path / "results")
-    _make_event_clip(results_root, "clipA")   # detects trophy=2, impact=7
+    _make_event_clip(results_root, "clipA")
     _make_event_clip(results_root, "clipB")
     anns = [
         EventAnnotation("clipA", true_trophy_frame=2, true_impact_frame=6),
@@ -108,9 +97,8 @@ def test_estimate_event_error_offsets(tmp_path):
     ]
     err = estimate_event_error(anns, results_root, tolerances=(1,))
 
-    assert err.trophy.n_moved_by_tolerance[1] == 0    # both trophy offsets 0
+    assert err.trophy.n_moved_by_tolerance[1] == 0
     assert err.trophy.move_rate_by_tolerance[1] == 0.0
-    # impact offsets: clipA 7-6=1 (within tol), clipB 7-3=4 (moved).
     assert err.impact.n_moved_by_tolerance[1] == 1
     assert err.impact.max_abs_offset == 4.0
     assert err.impact.n_not_locatable == 0
@@ -124,19 +112,17 @@ def test_estimate_event_error_handles_not_locatable(tmp_path):
 
     assert err.trophy.n_not_locatable == 1
     assert err.impact.n_not_locatable == 1
-    # A not-locatable event needs a move at every tolerance.
     assert err.impact.move_rate_by_tolerance[1] == 1.0
     assert math.isnan(err.impact.mean_offset)
 
 
-# Measured runner
 def test_measured_assessment_runs_event_error_and_sigma_sweep(tmp_path):
     from assessment.run_measured import measured_assessment
     from serve_pipeline.rules import RULES
 
     config = PipelineConfig()
     results_root = str(tmp_path / "results")
-    _make_event_clip(results_root, "clipA")     # full clip_params + filtered
+    _make_event_clip(results_root, "clipA")
 
     ann_dir = tmp_path / "annotations"
     ann_dir.mkdir()
@@ -149,8 +135,6 @@ def test_measured_assessment_runs_event_error_and_sigma_sweep(tmp_path):
 
     assert m.event_error is not None
     assert m.event_error.impact.n_locatable == 1
-    # The synthetic core is reported over the whole sigma sweep, one point
-    # per swept sigma, each carrying every rule.
     assert m.sigma_sweep == list(config.sigma_sweep)
     assert [p.sigma for p in m.sweep] == list(config.sigma_sweep)
     for point in m.sweep:
@@ -169,8 +153,6 @@ def test_measured_assessment_without_event_annotation(tmp_path):
 
 
 def test_swept_sigma_changes_spread():
-    # A different sigma must move the induced spread; otherwise the sweep
-    # would not actually feed the synthetic core.
     from assessment.propagation import noise_propagation
 
     config = PipelineConfig()

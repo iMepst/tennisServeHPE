@@ -37,12 +37,9 @@ def test_pixel_point_rescales_by_frame_size() -> None:
 
 
 def test_equal_normalized_offsets_differ_in_pixels_on_wide_frames() -> None:
-    # On a 16:9 frame the same normalized offset spans different pixel
-    # lengths per axis — the reason rescaling precedes every angle.
     x0, y0 = pixel_point(0.4, 0.4, _params(1920, 1080))
     x1, y1 = pixel_point(0.5, 0.5, _params(1920, 1080))
     assert (x1 - x0, y1 - y0) == (192.0, 108.0)
-    # only a square frame keeps the offsets equal
     x0, y0 = pixel_point(0.4, 0.4, _params(1000, 1000))
     x1, y1 = pixel_point(0.5, 0.5, _params(1000, 1000))
     assert x1 - x0 == y1 - y0
@@ -59,13 +56,12 @@ def test_vector_angle_oblique_and_scale_invariant() -> None:
     assert vector_angle((10.0, 0.0), (0.5, 0.5)) == pytest.approx(45.0)
 
 
-TINY = 1e-8  # slope where cos(theta) rounds to exactly +-1
+TINY = 1e-8
 
 
 def test_vector_angle_stable_near_parallel() -> None:
     ang = vector_angle((1.0, 0.0), (1.0, TINY))
     assert ang == pytest.approx(math.degrees(TINY), rel=1e-6)
-    # the acos route collapses to exactly 0 for the same vectors
     cos = 1.0 / math.hypot(1.0, TINY)
     assert math.degrees(math.acos(min(1.0, cos))) == 0.0
 
@@ -74,13 +70,11 @@ def test_vector_angle_stable_near_antiparallel() -> None:
     ang = vector_angle((1.0, 0.0), (-1.0, TINY))
     assert ang == pytest.approx(180.0 - math.degrees(TINY), rel=1e-12)
     assert ang < 180.0
-    # the acos route collapses to exactly 180 for the same vectors
     cos = -1.0 / math.hypot(1.0, TINY)
     assert math.degrees(math.acos(max(-1.0, cos))) == 180.0
 
 
 def _frame(positions: Dict[str, Tuple[float, float]]) -> ProcessedFrame:
-    """One frame; named landmarks at normalized (x, y), the rest at 0.5."""
     samples = []
     for lm in range(NUM_LANDMARKS):
         x, y = positions.get(LANDMARK_NAMES[lm], (0.5, 0.5))
@@ -98,7 +92,7 @@ def test_landmark_pixel_returns_rescaled_position() -> None:
 
 def test_landmark_pixel_rejects_missing_coordinates() -> None:
     frame = _frame({"right_wrist": (0.25, 0.5)})
-    sample = frame.samples[16]          # right_wrist
+    sample = frame.samples[16]
     sample.x = None
     sample.y = None
     with pytest.raises(ValueError, match="right_wrist"):
@@ -131,9 +125,6 @@ def test_turning_angle_straight_chain_is_zero() -> None:
 
 
 def test_pixel_rescaling_changes_a_non_square_angle() -> None:
-    # Same geometry, read on a 16:9 frame: the correct angle uses the
-    # pixel-rescaled vectors and differs from the un-rescaled one that a
-    # square-frame assumption would wrongly produce.
     frame = _frame({"right_hip": (0.2, 0.4), "right_knee": (0.5, 0.5),
                     "right_ankle": (0.6, 0.9)})
     w, h = 1920, 1080
@@ -152,8 +143,6 @@ def test_turning_angle_right_angle_bend() -> None:
     assert ang == pytest.approx(90.0)
 
 
-# A frame with the left leg bent at a right angle and the right leg
-# straight, on a square frame so normalized geometry carries to pixels.
 _LEGS = {
     "left_hip": (0.2, 0.5), "left_knee": (0.5, 0.5),
     "left_ankle": (0.5, 0.8),
@@ -177,7 +166,6 @@ def test_front_knee_flexion_rejects_unknown_side() -> None:
                            _params(1000, 1000, front_leg="both"))
 
 
-# Right arm bent at a right angle, left arm hanging straight down.
 _ARMS = {
     "right_shoulder": (0.6, 0.2), "right_elbow": (0.6, 0.5),
     "right_wrist": (0.9, 0.5),
@@ -201,7 +189,6 @@ def test_elbow_flexion_rejects_unknown_side() -> None:
 
 
 def test_shoulder_elevation_zero_with_arm_along_trunk() -> None:
-    # elbow straight below the shoulder, hip below the shoulder as well
     frame = _frame({"right_shoulder": (0.6, 0.2),
                     "right_elbow": (0.6, 0.5),
                     "right_hip": (0.6, 0.6)})
@@ -210,8 +197,6 @@ def test_shoulder_elevation_zero_with_arm_along_trunk() -> None:
 
 
 def test_shoulder_elevation_raised_arm_and_side_selection() -> None:
-    # right arm raised straight overhead (opposite the trunk direction),
-    # left arm horizontal (90 deg to its trunk vector)
     frame = _frame({"right_shoulder": (0.6, 0.5),
                     "right_elbow": (0.6, 0.2),
                     "right_hip": (0.6, 0.8),
@@ -227,17 +212,14 @@ def test_shoulder_elevation_raised_arm_and_side_selection() -> None:
 
 
 def test_shoulder_elevation_cardinal_arm_positions() -> None:
-    # One arm (right), shoulder above the hip so the trunk vector points
-    # down: arm along the trunk -> 0, horizontal away -> 90, straight up
-    # -> 180. Square frame so normalized geometry carries to pixels.
     def ang(elbow: Tuple[float, float]) -> float:
         frame = _frame({"right_shoulder": (0.6, 0.5),
                         "right_elbow": elbow,
                         "right_hip": (0.6, 0.8)})
         return shoulder_elevation(frame, _params(1000, 1000))
-    assert ang((0.6, 0.7)) == pytest.approx(0.0)      # straight down
-    assert ang((0.3, 0.5)) == pytest.approx(90.0)     # horizontal away
-    assert ang((0.6, 0.2)) == pytest.approx(180.0)    # straight up
+    assert ang((0.6, 0.7)) == pytest.approx(0.0)
+    assert ang((0.3, 0.5)) == pytest.approx(90.0)
+    assert ang((0.6, 0.2)) == pytest.approx(180.0)
 
 
 def test_body_midpoint_averages_both_sides_in_pixels() -> None:
@@ -247,8 +229,6 @@ def test_body_midpoint_averages_both_sides_in_pixels() -> None:
 
 
 def test_trunk_inclination_upright_is_zero_via_midpoints() -> None:
-    # individual sides are tilted, but both midpoints share x = 0.5:
-    # only the midpoint axis must count, and an upright trunk reads 0
     frame = _frame({"left_hip": (0.4, 0.62), "right_hip": (0.6, 0.58),
                     "left_shoulder": (0.45, 0.31),
                     "right_shoulder": (0.55, 0.29)})
@@ -263,19 +243,16 @@ def test_trunk_inclination_recovers_the_lean_not_its_complement() -> None:
     frame = _frame({"left_hip": hip, "right_hip": hip,
                     "left_shoulder": shoulder, "right_shoulder": shoulder})
     ang = trunk_inclination(frame, _params(1000, 1000))
-    assert ang == pytest.approx(25.0)     # not 155.0
+    assert ang == pytest.approx(25.0)
 
 
-# Trophy frame: bent left leg (_LEGS) plus a shoulder pair for the trunk.
 _TROPHY = {**_LEGS, "left_shoulder": (0.45, 0.31),
            "right_shoulder": (0.55, 0.29)}
-# Impact frame: bent right arm (_ARMS); right_hip defaults for shoulder.
 _IMPACT = _ARMS
 
 
 def _frames_with(trophy_idx: int, impact_idx: int,
                  n: int = 5) -> list:
-    """Dense frames keyed by index, posed only at the two key frames."""
     frames = []
     for i in range(n):
         pos = _TROPHY if i == trophy_idx else _IMPACT if i == impact_idx \
@@ -311,8 +288,8 @@ def test_compute_angles_gates_one_unreliable_landmark() -> None:
     frames = _frames_with(1, 3)
     frames[1].samples[NAME_TO_ID["left_knee"]].reliable = False
     r = compute_angles(frames, _locatable(1, 3), p)
-    assert r.front_knee_flexion is None        # gated out
-    assert r.trunk_inclination is not None      # unaffected
+    assert r.front_knee_flexion is None
+    assert r.trunk_inclination is not None
 
 
 def test_compute_angles_skips_unlocatable_event() -> None:

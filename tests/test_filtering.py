@@ -32,27 +32,23 @@ def _sine_series(freq_hz: float, n: int = 200,
 
 
 def _amplitude(frames: List[ProcessedFrame], margin: int = 20) -> float:
-    # trim the ends: filtfilt padding leaves edge transients that would
-    # otherwise dominate max-min for a strongly attenuated high-freq signal.
     xs = [f.samples[LM].x for f in frames[margin:len(frames) - margin]]
     return (max(xs) - min(xs)) / 2.0  # type: ignore[operator]
 
 
 def _cfg() -> FilterConfig:
-    return FilterConfig()  # the config-driven defaults: 8 Hz, order 2
+    return FilterConfig()
 
 
 def test_low_frequency_sine_survives_filtering() -> None:
-    frames = _sine_series(1.0)          # 1 Hz, well below the 8 Hz cut-off
+    frames = _sine_series(1.0)
     filter_series(frames, FPS, _cfg())
-    assert _amplitude(frames) > 0.9     # amplitude essentially preserved
+    assert _amplitude(frames) > 0.9
 
 
 def test_high_frequency_sine_is_strongly_attenuated() -> None:
-    frames = _sine_series(11.0)         # 11 Hz, above the 8 Hz cut-off
+    frames = _sine_series(11.0)
     filter_series(frames, FPS, _cfg())
-    # Butterworth power gain at 11 Hz, order 2, applied twice (filtfilt):
-    #   |H|^2 = 1 / (1 + (11/8)^4) -> ~0.22, so below 0.3.
     assert _amplitude(frames) < 0.3
 
 
@@ -65,7 +61,6 @@ def test_filtered_flag_set_on_long_reliable_segment() -> None:
 
 
 def test_short_segment_is_left_unfiltered() -> None:
-    # min segment length for order 2 is 3*(2+1)+1 = 10; 8 is too short
     frames = _sine_series(1.0, n=8)
     stats = filter_series(frames, FPS, _cfg())
     assert not any(f.samples[LM].filtered for f in frames)
@@ -75,9 +70,8 @@ def test_short_segment_is_left_unfiltered() -> None:
 
 def test_unreliable_sample_splits_segments() -> None:
     frames = _sine_series(1.0, n=40)
-    frames[20].samples[LM].reliable = False   # break LM into two short halves
+    frames[20].samples[LM].reliable = False
     filter_series(frames, FPS, _cfg())
-    # both halves (~20 < ... ) still filter; the break itself stays unfiltered
     assert frames[20].samples[LM].filtered is False
 
 
@@ -87,11 +81,11 @@ def test_filtered_csv_roundtrip(tmp_path: Path) -> None:
         samples = []
         for lm in range(NUM_LANDMARKS):
             s = _psample(lm, float(i + lm))
-            if lm == 5 and i == 1:           # an unreliable, interpolated one
+            if lm == 5 and i == 1:
                 s.reliable = False
                 s.interpolated = True
                 s.filtered = False
-            if lm == 7 and i == 2:           # an undetected-style hole
+            if lm == 7 and i == 2:
                 s = ProcessedSample(
                     lm, valid=False, mask_reason="undetected",
                     interpolated=False, reliable=False, filtered=False,

@@ -41,11 +41,9 @@ def _read_csv(path: str) -> List[Dict[str, str]]:
 
 def test_build_report_aggregates(tmp_path) -> None:
     root = str(tmp_path)
-    # Frontal clip: trunk read, knee unavailable (wrong plane).
     _write_clip(root, "serve_a", "frontal", True, True,
                 _indicators("inside", "unavailable", "outside", "inside"),
                 det_rate=0.95)
-    # Sagittal clip: knee read, trunk unavailable; impact not located.
     _write_clip(root, "serve_b", "sagittal", True, False,
                 _indicators("unavailable", "outside", "unavailable",
                             "unavailable"),
@@ -57,17 +55,13 @@ def test_build_report_aggregates(tmp_path) -> None:
 
     ind = {(r["clip"], r["criterion"]): r
            for r in _read_csv(report["outputs"]["indicators_csv"])}
-    # One row per (clip, criterion): 2 clips x 4 = 8.
     assert len(ind) == 8
-    # Band bounds are joined from RULES, not re-typed.
     trunk = _RULE_BY_ID["trunk_inclination"]
     assert float(ind[("serve_a", "trunk_inclination")]["band_lo"]) == trunk.lo
     assert float(ind[("serve_a", "trunk_inclination")]["band_hi"]) == trunk.hi
-    # The one-sided knee has no upper bound.
     assert ind[("serve_b", "front_knee_flexion")]["band_hi"] == ""
     assert ind[("serve_b", "front_knee_flexion")]["band_kind"] == "lower_bound"
 
-    # Only indicators.csv is emitted; no LaTeX fragments, no availability CSV.
     assert set(report["outputs"]) == {"indicators_csv"}
 
 def test_key_frame_candidates_need_both_events(tmp_path) -> None:
@@ -77,7 +71,6 @@ def test_key_frame_candidates_need_both_events(tmp_path) -> None:
     _write_clip(root, "serve_b", "sagittal", True, False,
                 _indicators("unavailable", "inside", "unavailable",
                             "unavailable"), 0.9)
-    # Only serve_a has both events; give it a key_frames.png to be picked.
     open(os.path.join(root, "serve_a", "key_frames.png"), "w").close()
 
     report = build_report(root, os.path.join(root, "_report"),

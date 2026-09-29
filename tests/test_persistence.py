@@ -16,7 +16,6 @@ from conftest import make_frame_pose
 
 
 def test_csv_roundtrip(tmp_path):
-    """What goes in must come out: detected and undetected frames."""
     path = str(tmp_path / "landmarks.csv")
     original = [
         make_frame_pose(0, 0.0, detected=True),
@@ -42,7 +41,6 @@ def test_csv_roundtrip(tmp_path):
 
 
 def test_csv_schema_and_density(tmp_path):
-    """Every frame contributes exactly NUM_LANDMARKS rows, even without pose."""
     path = str(tmp_path / "landmarks.csv")
     with LandmarkCsvWriter(path) as w:
         w.write_frame(make_frame_pose(0, 0.0, detected=True))
@@ -54,7 +52,6 @@ def test_csv_schema_and_density(tmp_path):
     assert len(rows) == 1 + 2 * NUM_LANDMARKS
     undetected = [r for r in rows[1:] if r[0] == "1"]
     assert len(undetected) == NUM_LANDMARKS
-    # all value columns (x, y, visibility) empty on undetected frames
     assert all(r[4:] == ["", "", ""] for r in undetected)
 
 

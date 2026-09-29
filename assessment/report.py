@@ -18,8 +18,11 @@ import os
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
+import numpy as np
+
 from assessment.annotation import EventError, EventStats
-from assessment.projection import ProjectionCurve, projection_curves
+from assessment.projection import (ProjectionCurve, projection_curves,
+                                   theta_values)
 from assessment.propagation import REP_STATURE_PX
 from assessment.run_measured import SigmaPoint, measured_assessment
 from serve_pipeline.config import PipelineConfig
@@ -152,7 +155,6 @@ _E4_NOTE = (
 
 def run_meta(config: PipelineConfig, outputs: Dict[str, str],
              out_dir: str) -> Dict[str, Any]:
-    from assessment.projection import theta_values
     return {
         "theta_range": list(config.theta_range),
         "theta_step": config.theta_step,
@@ -203,7 +205,7 @@ def _plot_projection_curves(curves: List[ProjectionCurve], path: str) -> str:
     fig, ax = plt.subplots(figsize=(7, 5))
     for c in curves:
         ax.plot(c.thetas, c.projected, marker="o", ms=3,
-                label=f"{_CRITERION_LABEL.get(c.criterion, c.criterion)} "
+                label=f"{_CRITERION_LABEL[c.criterion]} "
                       f"({c.kind.replace('_', ' ')})")
     ax.set_xlabel("viewpoint angle theta (deg)")
     ax.set_ylabel("projected angle (deg)")
@@ -227,7 +229,7 @@ def _plot_spread_vs_theta(sweep: List[SigmaPoint], path: str) -> str:
             prop = {p.criterion: p for p in point.propagation}[criterion]
             ax.plot(prop.thetas, prop.sd_deg, marker="o", ms=3,
                     label=f"sigma = {point.sigma:g} px")
-        ax.set_title(_CRITERION_LABEL.get(criterion, criterion))
+        ax.set_title(_CRITERION_LABEL[criterion])
         ax.set_xlabel("theta (deg)")
         ax.set_ylabel("induced SD (deg)")
     handles, labels = axes.flat[0].get_legend_handles_labels()
@@ -243,7 +245,6 @@ def _plot_spread_vs_theta(sweep: List[SigmaPoint], path: str) -> str:
 def _cell_edges(centers):
     """Cell-boundary coordinates for centers, matching pcolormesh 'nearest':
     midpoints between centers, half a step beyond at each end."""
-    import numpy as np
     c = np.asarray(centers, dtype=float)
     if c.size == 1:
         return np.array([c[0] - 0.5, c[0] + 0.5])
@@ -259,10 +260,7 @@ def _draw_threshold_boundary(ax, thetas, sigmas, grid, level) -> None:
     at/above-level one, giving a crisp stair-step boundary that follows the
     grid instead of an interpolated diagonal.
     """
-    import numpy as np
     g = np.asarray(grid, dtype=float)
-    if g.shape[0] < 2 and g.shape[1] < 2:
-        return
     over = g >= level
     xe = _cell_edges(thetas)
     ye = _cell_edges(sigmas)
@@ -282,7 +280,6 @@ def _plot_decidability_map(sweep: List[SigmaPoint], path: str) -> str:
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
-    import numpy as np
 
     onset = _unreliable_onset(sweep)
     sigmas = [p.sigma for p in sweep]
@@ -299,8 +296,8 @@ def _plot_decidability_map(sweep: List[SigmaPoint], path: str) -> str:
                              vmax=_DECIDABILITY_VMAX)
         _draw_threshold_boundary(ax, thetas, sigmas, grid, 1.0)
         crit_onset = onset.get(criterion)
-        title = _CRITERION_LABEL.get(criterion, criterion)
-        if crit_onset and crit_onset["theta"] is not None:
+        title = _CRITERION_LABEL[criterion]
+        if crit_onset:
             ax.plot(crit_onset["theta"], crit_onset["sigma"], marker="o",
                     ms=9, markerfacecolor="white", markeredgecolor="black",
                     markeredgewidth=1.4, clip_on=True, zorder=5)
@@ -372,7 +369,7 @@ def build_assessment_report(config: PipelineConfig, annotations_dir: str,
     write_metadata(meta_path, run_meta(config, outputs, out_dir))
     outputs["run_meta"] = meta_path
 
-    return {"out_dir": out_dir, "outputs": outputs, "measured": measured}
+    return {"out_dir": out_dir, "outputs": outputs}
 
 
 _DEFAULT_ANNOTATIONS = os.path.join(

@@ -77,19 +77,3 @@ def decidability(config: PipelineConfig,
             thetas=prop.thetas, induced_sd=prop.sd_deg, ratio=ratio,
             decidable=decidable, verdict=verdict, breakdown_theta=breakdown))
     return results
-
-
-def _print_sanity_table(config: PipelineConfig) -> None:
-    results = decidability(config)
-    print(f"induced SD / band half-width, sigma = {config.sigma} px "
-          f"(decidable while < 1)")
-    header = "criterion".ljust(20) + "".join(
-        f"{th:7.0f}" for th in results[0].thetas) + "   verdict"
-    print(header)
-    for d in results:
-        row = d.criterion.ljust(20) + "".join(f"{r:7.2f}" for r in d.ratio)
-        print(f"{row}   {d.verdict}")
-
-
-if __name__ == "__main__":
-    _print_sanity_table(PipelineConfig())

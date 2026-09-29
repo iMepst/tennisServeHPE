@@ -195,18 +195,3 @@ def noise_propagation(config: PipelineConfig,
             mc_samples=config.mc_samples, seed=config.seed,
             thetas=thetas, sd_deg=sd))
     return results
-
-
-def _print_sanity_table(config: PipelineConfig) -> None:
-    results = noise_propagation(config)
-    print(f"induced SD (deg), sigma = {config.sigma} px")
-    header = "criterion".ljust(20) + "".join(
-        f"{th:7.0f}" for th in results[0].thetas)
-    print(header)
-    for r in results:
-        row = r.criterion.ljust(20) + "".join(f"{sd:7.2f}" for sd in r.sd_deg)
-        print(row)
-
-
-if __name__ == "__main__":
-    _print_sanity_table(PipelineConfig())

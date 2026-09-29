@@ -135,13 +135,11 @@ class EventError:
 
 
 def estimate_event_error(annotations: List[EventAnnotation],
-                         results_root: Optional[str] = None,
+                         results_root: str,
                          tolerances: Optional[Tuple[int, ...]] = None,
                          large_offset_frames: Optional[int] = None
                          ) -> EventError:
     config = PipelineConfig()
-    if results_root is None:
-        results_root = config.results_root
     if tolerances is None:
         tolerances = config.event_tolerances_frames
     if large_offset_frames is None:

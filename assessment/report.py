@@ -18,7 +18,7 @@ import os
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
-from assessment.annotation import EventError, EventTypeError
+from assessment.annotation import EventError, EventStats
 from assessment.projection import ProjectionCurve, projection_curves
 from assessment.propagation import REP_STATURE_PX
 from assessment.run_measured import SigmaPoint, measured_assessment
@@ -109,7 +109,7 @@ def decidability_rows(sweep: List[SigmaPoint]) -> List[Dict[str, Any]]:
     return rows
 
 
-def _event_type_dict(e: EventTypeError) -> Dict[str, Any]:
+def _event_stats_dict(e: EventStats) -> Dict[str, Any]:
     return {
         "n_clips": e.n_clips,
         "n_locatable": e.n_locatable,
@@ -129,17 +129,17 @@ def _event_type_dict(e: EventTypeError) -> Dict[str, Any]:
 
 
 def event_error_dict(event_error: Optional[EventError],
-                     annotations_path: str) -> Dict[str, Any]:
+                     events_csv: str) -> Dict[str, Any]:
     """``available`` is the flag the Results chapter keys on: False means the
     event error was not measured (no events.csv), never that it was zero.
     """
     if event_error is None:
         return {"available": False, "placeholder": True,
-                "note": f"no event annotation at {annotations_path}; "
+                "note": f"no event annotation at {events_csv}; "
                         "E3 not measured"}
     return {"available": True, "n_clips": event_error.n_clips,
-            "trophy": _event_type_dict(event_error.trophy),
-            "impact": _event_type_dict(event_error.impact)}
+            "trophy": _event_stats_dict(event_error.trophy),
+            "impact": _event_stats_dict(event_error.impact)}
 
 
 _E4_NOTE = (
@@ -344,7 +344,7 @@ def build_assessment_report(config: PipelineConfig, annotations_dir: str,
 
     curves = projection_curves(config)
     measured = measured_assessment(config, annotations_dir, results_root)
-    annotations_path = os.path.join(annotations_dir, "events.csv")
+    events_csv = os.path.join(annotations_dir, "events.csv")
 
     outputs: Dict[str, str] = {
         "projection_curves": _write_csv(
@@ -360,7 +360,7 @@ def build_assessment_report(config: PipelineConfig, annotations_dir: str,
 
     event_path = os.path.join(out_dir, "event_error.json")
     write_metadata(event_path, event_error_dict(
-        measured.event_error, annotations_path))
+        measured.event_error, events_csv))
     outputs["event_error"] = event_path
 
     if make_figures:

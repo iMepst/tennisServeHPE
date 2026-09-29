@@ -47,8 +47,8 @@ def read_event_annotations(path: str) -> List[EventAnnotation]:
 
 def _detect_events(clip: str, results_root: str
                    ) -> Tuple[Optional[int], Optional[int]]:
-    meta = read_metadata(os.path.join(results_root, clip, "result.json"))
-    clip_params = ClipParams(**meta["clip_params"])
+    result = read_metadata(os.path.join(results_root, clip, "result.json"))
+    clip_params = ClipParams(**result["clip_params"])
     frames = read_filtered_csv(
         os.path.join(results_root, clip, "stage2", "filtered.csv"))
     events = detect_key_events(frames, clip_params)
@@ -65,7 +65,7 @@ def _robust_spread(values: List[int]) -> float:
 
 
 @dataclass
-class EventTypeError:
+class EventStats:
     """Offset statistics for one event type (trophy or impact) across clips.
 
     Robust-first: the headline is the median offset and interquartile spread
@@ -94,9 +94,9 @@ class EventTypeError:
     mean_offset: float
 
 
-def _event_type_error(event: str, offsets: List[Optional[int]],
-                      tolerances: Tuple[int, ...],
-                      large_offset_frames: int) -> EventTypeError:
+def _event_stats(event: str, offsets: List[Optional[int]],
+                 tolerances: Tuple[int, ...],
+                 large_offset_frames: int) -> EventStats:
     located = [o for o in offsets if o is not None]
     n_clips = len(offsets)
     n_not_locatable = n_clips - len(located)
@@ -111,7 +111,7 @@ def _event_type_error(event: str, offsets: List[Optional[int]],
         move_rate_by_tolerance[tol] = (
             n_needs_move / n_clips if n_clips else math.nan)
 
-    return EventTypeError(
+    return EventStats(
         event=event, n_clips=n_clips, n_locatable=len(located),
         n_not_locatable=n_not_locatable,
         tolerances=tuple(tolerances),
@@ -130,8 +130,8 @@ def _event_type_error(event: str, offsets: List[Optional[int]],
 @dataclass
 class EventError:
     n_clips: int
-    trophy: EventTypeError
-    impact: EventTypeError
+    trophy: EventStats
+    impact: EventStats
 
 
 def estimate_event_error(annotations: List[EventAnnotation],
@@ -160,7 +160,7 @@ def estimate_event_error(annotations: List[EventAnnotation],
 
     return EventError(
         n_clips=len(annotations),
-        trophy=_event_type_error("trophy", trophy_offsets, tolerances,
-                                 large_offset_frames),
-        impact=_event_type_error("impact", impact_offsets, tolerances,
-                                 large_offset_frames))
+        trophy=_event_stats("trophy", trophy_offsets, tolerances,
+                            large_offset_frames),
+        impact=_event_stats("impact", impact_offsets, tolerances,
+                            large_offset_frames))

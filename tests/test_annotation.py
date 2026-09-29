@@ -6,7 +6,7 @@ import pytest
 
 from assessment.annotation import (
     EventAnnotation, estimate_event_error, read_event_annotations,
-    _event_type_error)
+    _event_stats)
 from serve_pipeline.config import PipelineConfig
 from serve_pipeline.interpolation import ProcessedFrame, ProcessedSample
 from serve_pipeline.landmarks import NAME_TO_ID, NUM_LANDMARKS
@@ -61,9 +61,9 @@ def test_read_event_annotations_rejects_bad_schema(tmp_path):
         read_event_annotations(str(path))
 
 
-def test_event_type_error_rate_and_distribution():
-    err = _event_type_error("trophy", [0, 2, -3, None],
-                            tolerances=(1, 3), large_offset_frames=30)
+def test_event_stats_rate_and_distribution():
+    err = _event_stats("trophy", [0, 2, -3, None],
+                       tolerances=(1, 3), large_offset_frames=30)
     assert err.n_clips == 4
     assert err.n_locatable == 3
     assert err.n_not_locatable == 1
@@ -76,9 +76,9 @@ def test_event_type_error_rate_and_distribution():
     assert err.n_large_failures == 0
 
 
-def test_event_type_error_robust_to_heavy_tail():
-    err = _event_type_error("impact", [0, -1, 1, 0, 200],
-                            tolerances=(1,), large_offset_frames=30)
+def test_event_stats_robust_to_heavy_tail():
+    err = _event_stats("impact", [0, -1, 1, 0, 200],
+                       tolerances=(1,), large_offset_frames=30)
     assert err.n_large_failures == 1
     assert err.median_offset == 0.0
     assert err.max_abs_offset == 200.0
@@ -91,11 +91,11 @@ def test_estimate_event_error_offsets(tmp_path):
     results_root = str(tmp_path / "results")
     _make_event_clip(results_root, "clipA")
     _make_event_clip(results_root, "clipB")
-    anns = [
+    annotations = [
         EventAnnotation("clipA", true_trophy_frame=2, true_impact_frame=6),
         EventAnnotation("clipB", true_trophy_frame=2, true_impact_frame=3),
     ]
-    err = estimate_event_error(anns, results_root, tolerances=(1,))
+    err = estimate_event_error(annotations, results_root, tolerances=(1,))
 
     assert err.trophy.n_moved_by_tolerance[1] == 0
     assert err.trophy.move_rate_by_tolerance[1] == 0.0
@@ -107,8 +107,9 @@ def test_estimate_event_error_offsets(tmp_path):
 def test_estimate_event_error_handles_not_locatable(tmp_path):
     results_root = str(tmp_path / "results")
     _make_event_clip(results_root, "clipX", locatable=False)
-    anns = [EventAnnotation("clipX", true_trophy_frame=2, true_impact_frame=7)]
-    err = estimate_event_error(anns, results_root)
+    annotations = [EventAnnotation("clipX", true_trophy_frame=2,
+                                   true_impact_frame=7)]
+    err = estimate_event_error(annotations, results_root)
 
     assert err.trophy.n_not_locatable == 1
     assert err.impact.n_not_locatable == 1
@@ -131,13 +132,13 @@ def test_measured_assessment_runs_event_error_and_sigma_sweep(tmp_path):
         writer.writerow(["clip", "true_trophy_frame", "true_impact_frame"])
         writer.writerow(["clipA", 2, 6])
 
-    m = measured_assessment(config, str(ann_dir), results_root)
+    measured = measured_assessment(config, str(ann_dir), results_root)
 
-    assert m.event_error is not None
-    assert m.event_error.impact.n_locatable == 1
-    assert m.sigma_sweep == list(config.sigma_sweep)
-    assert [p.sigma for p in m.sweep] == list(config.sigma_sweep)
-    for point in m.sweep:
+    assert measured.event_error is not None
+    assert measured.event_error.impact.n_locatable == 1
+    assert measured.sigma_sweep == list(config.sigma_sweep)
+    assert [p.sigma for p in measured.sweep] == list(config.sigma_sweep)
+    for point in measured.sweep:
         assert len(point.decidability) == len(RULES)
         assert point.propagation[0].sigma == pytest.approx(point.sigma)
 
@@ -146,10 +147,10 @@ def test_measured_assessment_without_event_annotation(tmp_path):
     from assessment.run_measured import measured_assessment
 
     config = PipelineConfig()
-    m = measured_assessment(config, str(tmp_path / "missing"))
+    measured = measured_assessment(config, str(tmp_path / "missing"))
 
-    assert m.event_error is None
-    assert [p.sigma for p in m.sweep] == list(config.sigma_sweep)
+    assert measured.event_error is None
+    assert [p.sigma for p in measured.sweep] == list(config.sigma_sweep)
 
 
 def test_swept_sigma_changes_spread():

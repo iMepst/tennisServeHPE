@@ -83,7 +83,7 @@ def _print_event_error(m: MeasuredAssessment) -> None:
                   f"mean {e.mean_offset:+.2f} frames")
 
 
-def _print_core(m: MeasuredAssessment) -> None:
+def _print_decidability(m: MeasuredAssessment) -> None:
     thetas = m.sweep[0].decidability[0].thetas
     for point in m.sweep:
         print(f"\nper-criterion induced SD (deg) over theta, sigma = "
@@ -103,7 +103,7 @@ def print_report(m: MeasuredAssessment) -> None:
     _print_sigma_sweep(m)
     print()
     _print_event_error(m)
-    _print_core(m)
+    _print_decidability(m)
 
 
 def main() -> None:

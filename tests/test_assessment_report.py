@@ -2,7 +2,7 @@ import csv
 import json
 import os
 
-from assessment.annotation import EventError, _event_type_error
+from assessment.annotation import EventError, _event_stats
 from assessment.decidability import Decidability
 from assessment.report import (_DECIDABILITY_HEADER, _NOISE_HEADER,
                                _PROJECTION_HEADER, build_assessment_report,
@@ -112,8 +112,8 @@ def test_build_report_writes_figures(tmp_path):
     for name in ("projection_curves.png", "spread_vs_theta.png",
                  "decidability_map.png"):
         assert os.path.getsize(os.path.join(fig_dir, name)) > 0
-    ev = _read_json(os.path.join(out_dir, "event_error.json"))
-    assert ev["placeholder"] is True
+    event_error = _read_json(os.path.join(out_dir, "event_error.json"))
+    assert event_error["placeholder"] is True
 
 
 def test_reproducible_numbers_across_runs(tmp_path):
@@ -135,11 +135,11 @@ def test_event_error_placeholder_when_missing(tmp_path):
     build_assessment_report(config, annotations_dir=str(tmp_path / "none"),
                             results_root=str(tmp_path / "results"),
                             out_dir=out_dir, make_figures=False)
-    ev = _read_json(os.path.join(out_dir, "event_error.json"))
-    assert ev["available"] is False
-    assert ev["placeholder"] is True
-    assert "note" in ev
-    assert "trophy" not in ev and "impact" not in ev
+    event_error = _read_json(os.path.join(out_dir, "event_error.json"))
+    assert event_error["available"] is False
+    assert event_error["placeholder"] is True
+    assert "note" in event_error
+    assert "trophy" not in event_error and "impact" not in event_error
 
 
 def test_run_meta_logs_every_parameter(tmp_path):
@@ -164,22 +164,23 @@ def test_run_meta_logs_every_parameter(tmp_path):
 
 
 def test_event_error_dict_serialises_robust_stats():
-    impact = _event_type_error("impact", [0, -1, 1, 200],
-                               tolerances=(1, 3), large_offset_frames=30)
-    trophy = _event_type_error("trophy", [0, 0, 0, 0],
-                               tolerances=(1, 3), large_offset_frames=30)
-    d = event_error_dict(EventError(n_clips=4, trophy=trophy, impact=impact),
-                         annotations_path="unused")
-    assert set(d) == {"available", "n_clips", "trophy", "impact"}
-    assert d["available"] is True
-    assert set(d["impact"]) == {
+    impact = _event_stats("impact", [0, -1, 1, 200],
+                          tolerances=(1, 3), large_offset_frames=30)
+    trophy = _event_stats("trophy", [0, 0, 0, 0],
+                          tolerances=(1, 3), large_offset_frames=30)
+    record = event_error_dict(
+        EventError(n_clips=4, trophy=trophy, impact=impact),
+        events_csv="unused")
+    assert set(record) == {"available", "n_clips", "trophy", "impact"}
+    assert record["available"] is True
+    assert set(record["impact"]) == {
         "n_clips", "n_locatable", "n_not_locatable", "tolerances",
         "n_moved_by_tolerance", "move_rate_by_tolerance", "median_offset",
         "iqr_offset", "max_abs_offset", "large_offset_frames",
         "n_large_failures", "mean_offset"}
-    assert d["impact"]["n_large_failures"] == 1
-    assert set(d["impact"]["move_rate_by_tolerance"]) == {"1", "3"}
-    assert d["impact"]["median_offset"] == 0.5
+    assert record["impact"]["n_large_failures"] == 1
+    assert set(record["impact"]["move_rate_by_tolerance"]) == {"1", "3"}
+    assert record["impact"]["median_offset"] == 0.5
 
 
 def _decidability(criterion, verdict, breakdown):

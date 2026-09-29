@@ -1,13 +1,5 @@
 """Assemble the feasibility assessment into machine-readable artifacts.
 
-Step 8, the reporter: it only *runs* the existing assessment modules over the
-configured theta sweep (0deg-45deg) and sigma band (2-6 px) and serialises what
-they return. No analysis lives here -- the projection (E2), the Monte-Carlo
-landmark-noise spread (E1), the decidability criterion (3b/3c) and the event
-error (E3) are all computed in their own modules; this file just orchestrates
-the calls and writes the tables and metadata the Results and Discussion
-chapters read.
-
 Written to results/assessment/:
 
 - projection_curves.csv   E2:    per criterion, theta -> projected angle
@@ -33,13 +25,8 @@ from assessment.run_measured import SigmaPoint, measured_assessment
 from serve_pipeline.config import PipelineConfig
 from serve_pipeline.persistence import write_metadata
 
-# Everything the reporter produces lands under results/<this>/.
 DEFAULT_SUBDIR = "assessment"
 
-
-# --------------------------------------------------------------------------
-# CSV writers -- one per artifact, each a flat table of the module's output.
-# --------------------------------------------------------------------------
 
 def _write_csv(path: str, header: List[str],
                rows: List[Dict[str, Any]]) -> str:
@@ -54,7 +41,6 @@ _PROJECTION_HEADER = ["criterion", "kind", "a_true", "theta", "projected_angle"]
 
 
 def projection_rows(curves: List[ProjectionCurve]) -> List[Dict[str, Any]]:
-    """One row per (criterion, theta): the projected angle E2 predicts."""
     rows: List[Dict[str, Any]] = []
     for c in curves:
         for theta, projected in zip(c.thetas, c.projected):
@@ -69,11 +55,6 @@ _NOISE_HEADER = ["criterion", "a_true", "sigma", "mc_samples", "seed",
 
 
 def noise_rows(sweep: List[SigmaPoint]) -> List[Dict[str, Any]]:
-    """One row per (criterion, sigma, theta): the Monte-Carlo induced SD.
-
-    The whole sigma band is unrolled, so the induced spread is available as a
-    function of both viewpoint and noise level.
-    """
     rows: List[Dict[str, Any]] = []
     for point in sweep:
         for prop in point.propagation:
@@ -96,8 +77,7 @@ def _unreliable_onset(sweep: List[SigmaPoint]
 
     Walks the sigma band in ascending order (the sweep order) and takes the
     first sigma whose verdict is "unreliable"; the theta is that verdict's
-    breakdown viewpoint. This pair is the Q3 reading -- the operating point at
-    which the criterion stops separating sound from faulty. Both None for a
+    breakdown viewpoint. This pair is the Q3 reading. Both None for a
     criterion that stays decidable across the whole grid.
     """
     onset: Dict[str, Dict[str, Optional[float]]] = {}
@@ -112,12 +92,6 @@ def _unreliable_onset(sweep: List[SigmaPoint]
 
 
 def decidability_rows(sweep: List[SigmaPoint]) -> List[Dict[str, Any]]:
-    """One row per (criterion, sigma, theta): induced SD held against the band.
-
-    Each row carries the induced SD, the rule's band half-width, their ratio
-    and the per-theta decidable flag; the onset columns repeat the criterion's
-    first-unreliable (sigma, theta) so the Q3 reading is on every row.
-    """
     onset = _unreliable_onset(sweep)
     rows: List[Dict[str, Any]] = []
     for point in sweep:
@@ -135,12 +109,7 @@ def decidability_rows(sweep: List[SigmaPoint]) -> List[Dict[str, Any]]:
     return rows
 
 
-# --------------------------------------------------------------------------
-# JSON writers -- the empirical event error and the run parameters.
-# --------------------------------------------------------------------------
-
 def _event_type_dict(e: EventTypeError) -> Dict[str, Any]:
-    """Serialise one event type, robust statistics first (task 1b ordering)."""
     return {
         "n_clips": e.n_clips,
         "n_locatable": e.n_locatable,
@@ -161,15 +130,10 @@ def _event_type_dict(e: EventTypeError) -> Dict[str, Any]:
 
 def event_error_dict(event_error: Optional[EventError],
                      annotations_path: str) -> Dict[str, Any]:
-    """The E3 record, or a clearly-marked placeholder when no CSV was found.
-
-    ``available`` is the flag the Results chapter keys on: False means the
+    """``available`` is the flag the Results chapter keys on: False means the
     event error was not measured (no events.csv), never that it was zero.
     """
     if event_error is None:
-        # No events.csv: mark the record as a placeholder and leave every rate
-        # unset. E3 is the one input that can be absent (sigma is always the
-        # swept band), and an absent rate is never fabricated as zero.
         return {"available": False, "placeholder": True,
                 "note": f"no event annotation at {annotations_path}; "
                         "E3 not measured"}
@@ -178,11 +142,6 @@ def event_error_dict(event_error: Optional[EventError],
             "impact": _event_type_dict(event_error.impact)}
 
 
-# E4 (definitional mismatch: surface landmarks vs the joint centres behind the
-# reference values) is out of scope by construction -- quantifying it needs
-# joint-centre ground truth the study does not have. It is recorded here as a
-# documented, unquantified offset so the artifacts show it was set aside on
-# purpose, never simply overlooked; it is never assigned a number.
 _E4_NOTE = (
     "E4 definitional mismatch is not quantified by design: the gap between "
     "surface landmarks and the joint centres behind the reference values "
@@ -193,11 +152,6 @@ _E4_NOTE = (
 
 def run_meta(config: PipelineConfig, outputs: Dict[str, str],
              out_dir: str) -> Dict[str, Any]:
-    """Every parameter the run used, so a later run reproduces it exactly.
-
-    Output paths are logged relative to out_dir (figures sit in a subdir), and
-    the E4 note records the one error source deliberately left unquantified.
-    """
     from assessment.projection import theta_values
     return {
         "theta_range": list(config.theta_range),
@@ -217,10 +171,8 @@ def run_meta(config: PipelineConfig, outputs: Dict[str, str],
     }
 
 
-# --------------------------------------------------------------------------
-# Figures -- reproducible views of the same numbers the CSVs carry. Matplotlib
-# is imported lazily (Agg, headless) so a numbers-only run needs no display.
-# --------------------------------------------------------------------------
+# Matplotlib is imported lazily (Agg, headless) so a numbers-only run needs
+# no display.
 
 FIGURE_SUBDIR = "figures"
 
@@ -240,16 +192,10 @@ _DECIDABILITY_VMAX = 1.1
 
 
 def _dec_by_criterion(point: SigmaPoint) -> Dict[str, Any]:
-    """Index one sweep point's decidability records by criterion id."""
     return {d.criterion: d for d in point.decidability}
 
 
 def _plot_projection_curves(curves: List[ProjectionCurve], path: str) -> str:
-    """E2: projected angle of every criterion over the theta sweep (one axes).
-
-    Each curve starts at its true angle (theta = 0) and foreshortens as the
-    viewpoint tilts; the trunk closed form and the numeric joints sit together.
-    """
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
@@ -270,10 +216,6 @@ def _plot_projection_curves(curves: List[ProjectionCurve], path: str) -> str:
 
 
 def _plot_spread_vs_theta(sweep: List[SigmaPoint], path: str) -> str:
-    """E1+E2: induced angular spread over theta, one panel per criterion.
-
-    A line per swept sigma, with one shared legend below the panels.
-    """
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
@@ -315,8 +257,7 @@ def _draw_threshold_boundary(ax, thetas, sigmas, grid, level) -> None:
 
     Draws only the interior edges separating a below-level cell from an
     at/above-level one, giving a crisp stair-step boundary that follows the
-    grid instead of an interpolated diagonal. Nothing is drawn when no cell
-    reaches level.
+    grid instead of an interpolated diagonal.
     """
     import numpy as np
     g = np.asarray(grid, dtype=float)
@@ -327,12 +268,10 @@ def _draw_threshold_boundary(ax, thetas, sigmas, grid, level) -> None:
     ye = _cell_edges(sigmas)
     kw = dict(color="k", lw=1.1, zorder=4)
     rows, cols = g.shape
-    # Vertical edges: between horizontally adjacent cells that straddle level.
     for j in range(rows):
         for i in range(cols - 1):
             if over[j, i] != over[j, i + 1]:
                 ax.plot([xe[i + 1], xe[i + 1]], [ye[j], ye[j + 1]], **kw)
-    # Horizontal edges: between vertically adjacent cells that straddle level.
     for j in range(rows - 1):
         for i in range(cols):
             if over[j, i] != over[j + 1, i]:
@@ -340,14 +279,6 @@ def _draw_threshold_boundary(ax, thetas, sigmas, grid, level) -> None:
 
 
 def _plot_decidability_map(sweep: List[SigmaPoint], path: str) -> str:
-    """The summary figure: per-criterion decidability over the (theta, sigma)
-    grid, so the headline (sigma, theta) onset reads at a glance.
-
-    Each panel colours the ratio induced_SD / band half-width on a sequential
-    colour scale, draws the reliability boundary at ratio = 1, and marks the
-    onset -- the first (sigma, theta) at which the criterion turns unreliable,
-    the Q3 reading. Panels with no marker stay decidable across the whole grid.
-    """
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
@@ -366,10 +297,6 @@ def _plot_decidability_map(sweep: List[SigmaPoint], path: str) -> str:
         mesh = ax.pcolormesh(thetas, sigmas, grid, shading="nearest",
                              cmap="cividis", vmin=_DECIDABILITY_VMIN,
                              vmax=_DECIDABILITY_VMAX)
-        # The reliability boundary at ratio = 1.0, drawn along the cell grid
-        # (not an interpolated diagonal) so it reads as a clean threshold: the
-        # edges separating decidable cells from unreliable ones. Absent where
-        # no cell crosses 1.0.
         _draw_threshold_boundary(ax, thetas, sigmas, grid, 1.0)
         crit_onset = onset.get(criterion)
         title = _CRITERION_LABEL.get(criterion, criterion)
@@ -394,7 +321,6 @@ def _plot_decidability_map(sweep: List[SigmaPoint], path: str) -> str:
 
 def write_figures(curves: List[ProjectionCurve], sweep: List[SigmaPoint],
                   fig_dir: str) -> Dict[str, str]:
-    """Write the three assessment figures into fig_dir, returning their paths."""
     os.makedirs(fig_dir, exist_ok=True)
     return {
         "projection_figure": _plot_projection_curves(
@@ -406,28 +332,16 @@ def write_figures(curves: List[ProjectionCurve], sweep: List[SigmaPoint],
     }
 
 
-# --------------------------------------------------------------------------
-# Orchestration.
-# --------------------------------------------------------------------------
-
 def build_assessment_report(config: PipelineConfig, annotations_dir: str,
                             results_root: Optional[str] = None,
                             out_dir: Optional[str] = None,
                             make_figures: bool = True) -> Dict[str, Any]:
-    """Run the assessment modules and write every artifact into out_dir.
-
-    Returns the written paths plus the assembled MeasuredAssessment, so a
-    caller (the CLI, a test) can inspect the numbers without re-reading the
-    files. Figures are written unless make_figures is False.
-    """
     if results_root is None:
         results_root = config.results_root
     if out_dir is None:
         out_dir = os.path.join(results_root, DEFAULT_SUBDIR)
     os.makedirs(out_dir, exist_ok=True)
 
-    # Run the modules. Projection is sigma-independent; the rest come from the
-    # measured assessment, which already sweeps sigma and reads the event CSV.
     curves = projection_curves(config)
     measured = measured_assessment(config, annotations_dir, results_root)
     annotations_path = os.path.join(annotations_dir, "events.csv")

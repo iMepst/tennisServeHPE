@@ -45,8 +45,6 @@ def numeric_projected_angle(a_true: float, theta: float) -> float:
     Independent tilts would need a two-parameter sweep; left as a documented limit.
     """
     h = math.radians(a_true / 2.0)
-    # Vertex at the origin, arms symmetric about the +y bisector, initially
-    # in the image plane (z = 0).
     arm_left = (-math.sin(h), math.cos(h), 0.0)
     arm_right = (math.sin(h), math.cos(h), 0.0)
     left = project_orthographic(_tilt_about_vertical(arm_left, theta))
@@ -59,7 +57,7 @@ def trunk_projected_angle(a_true: float, theta: float) -> float:
 
     A single line (trunk axis) against the image vertical, so tilting the lean
     plane by theta foreshortens only the horizontal component: tan(a_proj) =
-    tan(a_true) * cos(theta). Degrees in and out.
+    tan(a_true) * cos(theta).
     """
     a = math.radians(a_true)
     t = math.radians(theta)
@@ -67,29 +65,20 @@ def trunk_projected_angle(a_true: float, theta: float) -> float:
 
 
 def project_orthographic(v: Tuple[float, float, float]) -> Tuple[float, float]:
-    """Orthographic image of a 3D direction: keep x and y, drop depth z.
-
-    Level camera, parallel projection. Ignoring perspective makes the reported
-    error a lower bound: a real lens adds foreshortening, more so the closer or
-    more off-centre the player. The far-player assumption keeps the gap small.
+    """Ignoring perspective makes the reported error a lower bound: a real
+    lens adds foreshortening, more so the closer or more off-centre the
+    player. The far-player assumption keeps the gap small.
     """
     return v[0], v[1]
 
 
 def theta_values(config: PipelineConfig) -> List[float]:
-    """The theta sweep in degrees, inclusive of both range ends.
-
-    Enumerated from config.theta_range in steps of config.theta_step.
-    """
     lo, hi = config.theta_range
     step = config.theta_step
-    # Number of steps between the bounds; +1 to include the upper end.
     n = int(round((hi - lo) / step))
     return [lo + i * step for i in range(n + 1)]
 
 
-# Trunk is a single inclination (closed form); the other three are two-segment
-# joints (numeric).
 _CLOSED_FORM = {"trunk_inclination"}
 
 
@@ -109,12 +98,6 @@ class ProjectionCurve:
 
 
 def projection_curves(config: PipelineConfig) -> List[ProjectionCurve]:
-    """Projection curve for each criterion over the theta sweep.
-
-    Each true angle is prescribed as the rule's reference mean; no recording
-    enters. Trunk uses the closed form, the joints the numeric projection, so
-    segment length (how strongly it foreshortens) shows directly in the curve.
-    """
     thetas = theta_values(config)
     curves: List[ProjectionCurve] = []
     for rule in RULES:
@@ -129,11 +112,6 @@ def projection_curves(config: PipelineConfig) -> List[ProjectionCurve]:
 
 
 def _print_sanity_table(config: PipelineConfig) -> None:
-    """Print each criterion's projected angle across the theta sweep.
-
-    A quick eye check, not an artifact: every row starts at its true angle
-    (theta = 0) and shrinks as the viewpoint tilts.
-    """
     curves = projection_curves(config)
     header = "criterion".ljust(20) + "".join(
         f"{th:7.0f}" for th in curves[0].thetas)

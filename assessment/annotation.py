@@ -18,7 +18,6 @@ from serve_pipeline.config import ClipParams, PipelineConfig
 from serve_pipeline.keyevents import detect_key_events
 from serve_pipeline.persistence import read_filtered_csv, read_metadata
 
-# E3: event-detection stability.
 _EVENT_HEADER = ["clip", "true_trophy_frame", "true_impact_frame"]
 
 
@@ -33,7 +32,6 @@ class EventAnnotation:
 
 
 def read_event_annotations(path: str) -> List[EventAnnotation]:
-    """Read an event annotation CSV (docs/annotation_formats.md)."""
     with open(path, newline="") as f:
         reader = csv.DictReader(f)
         if reader.fieldnames != _EVENT_HEADER:
@@ -49,9 +47,6 @@ def read_event_annotations(path: str) -> List[EventAnnotation]:
 
 def _detect_events(clip: str, results_root: str
                    ) -> Tuple[Optional[int], Optional[int]]:
-    """Detected (trophy_frame, impact_frame) for a clip, each None when not
-    locatable. Runs key-event detection on the filtered trajectory with the
-    clip's recorded parameters."""
     meta = read_metadata(os.path.join(results_root, clip, "result.json"))
     clip_params = ClipParams(**meta["clip_params"])
     frames = read_filtered_csv(
@@ -63,12 +58,6 @@ def _detect_events(clip: str, results_root: str
 
 
 def _robust_spread(values: List[int]) -> float:
-    """Interquartile range (Q3 - Q1) of the offsets, in frames.
-
-    A robust spread: unlike the standard deviation it ignores the few
-    extreme slow-motion misses in the tail, so it describes where the bulk
-    of the offsets sit. Needs at least two points; nan below that.
-    """
     if len(values) < 2:
         return math.nan
     q1, _median, q3 = statistics.quantiles(values, n=4)
@@ -81,9 +70,7 @@ class EventTypeError:
 
     Robust-first: the headline is the median offset and interquartile spread
     (iqr_offset), undistorted by the heavy tail of a few mistimed slow-motion
-    clips; mean_offset is secondary. Offsets are detected - true, in frames;
-    max_abs_offset is the largest correction, n_large_failures counts events off
-    by at least large_offset_frames.
+    clips; mean_offset is secondary. Offsets are detected - true, in frames.
 
     A not-locatable event carries no offset but still needs the manual check, so
     it counts toward every move rate (reported as n_not_locatable).
@@ -110,7 +97,6 @@ class EventTypeError:
 def _event_type_error(event: str, offsets: List[Optional[int]],
                       tolerances: Tuple[int, ...],
                       large_offset_frames: int) -> EventTypeError:
-    """Aggregate one event type's per-clip offsets (None = not locatable)."""
     located = [o for o in offsets if o is not None]
     n_clips = len(offsets)
     n_not_locatable = n_clips - len(located)
@@ -143,8 +129,6 @@ def _event_type_error(event: str, offsets: List[Optional[int]],
 
 @dataclass
 class EventError:
-    """Event-error rate (E3) over the annotated clips, per event type."""
-
     n_clips: int
     trophy: EventTypeError
     impact: EventTypeError
@@ -155,14 +139,6 @@ def estimate_event_error(annotations: List[EventAnnotation],
                          tolerances: Optional[Tuple[int, ...]] = None,
                          large_offset_frames: Optional[int] = None
                          ) -> EventError:
-    """Measure the event-error rate (E3) from the manual frame check.
-
-    For each annotated clip, detect the key events and record the offset
-    detected - true for trophy and impact. Reported as move rates at a set of
-    tolerances (not-locatable counted as needing a move) plus the robust offset
-    distribution (median / IQR / max-abs, large-failure count, mean secondary).
-    Tolerances and the large-failure threshold default to the config values.
-    """
     config = PipelineConfig()
     if results_root is None:
         results_root = config.results_root

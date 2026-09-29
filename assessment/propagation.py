@@ -44,7 +44,6 @@ def two_segment_points(a_true: float, len1: float, len2: float,
     shoulder V angle: both outer points emanate from the vertex.
     """
     h = math.radians(a_true / 2.0)
-    # Two segment directions symmetric about the +y bisector, a_true apart.
     d1 = (-math.sin(h), math.cos(h), 0.0)
     d2 = (math.sin(h), math.cos(h), 0.0)
     vertex = (0.0, 0.0, 0.0)
@@ -77,9 +76,7 @@ def trunk_points(a_true: float, length: float) -> List[Point3]:
 # lengths below drive the per-criterion ordering, so the stature cancels out.
 REP_STATURE_PX = 600.0
 
-# Segment lengths as fractions of stature (Winter body-segment proportions). The
-# arm segments are shortest, which is why elbow and shoulder come out most
-# noise-sensitive.
+# Segment lengths as fractions of stature (Winter body-segment proportions).
 _UPPER_ARM = 0.186
 _FOREARM = 0.146
 _THIGH = 0.245
@@ -88,7 +85,7 @@ _TRUNK = 0.288
 
 # Per criterion, the pixel length of each segment whose endpoints carry a
 # landmark: two for the joints, one for the trunk (its second reference is the
-# fixed image vertical). Elbow and shoulder read short arm segments, so scatter most.
+# fixed image vertical).
 SEGMENT_LENGTHS_PX = {
     "trunk_inclination": (_TRUNK * REP_STATURE_PX,),
     "front_knee_flexion": (_THIGH * REP_STATURE_PX, _SHANK * REP_STATURE_PX),
@@ -108,11 +105,6 @@ CRITERION_KIND = {
 
 
 def landmark_points(criterion: str, a_true: float) -> List[Point3]:
-    """The true 3D landmark points for a criterion at true angle a_true.
-
-    Dispatches on CRITERION_KIND to the matching builder with the
-    criterion's representative segment lengths.
-    """
     kind = CRITERION_KIND[criterion]
     lengths = SEGMENT_LENGTHS_PX[criterion]
     if kind == "trunk":
@@ -121,10 +113,9 @@ def landmark_points(criterion: str, a_true: float) -> List[Point3]:
                               chain=(kind == "chain"))
 
 def project_points(points: List[Point3], theta: float) -> List[Point2]:
-    """Tilt each 3D point out of the image plane by theta and project it.
-
-    Reuses the projection E2 convention (tilt about the vertical, drop depth), so
-    the landmark noise is layered on exactly the image the projection produces.
+    """Reuses the projection E2 convention (tilt about the vertical, drop
+    depth), so the landmark noise is layered on exactly the image the
+    projection produces.
     """
     return [project_orthographic(_tilt_about_vertical(p, theta))
             for p in points]
@@ -132,18 +123,12 @@ def project_points(points: List[Point3], theta: float) -> List[Point2]:
 
 def add_noise(points: List[Point2], sigma: float,
               rng: np.random.Generator) -> List[Point2]:
-    """Perturb each 2D landmark by an isotropic Gaussian of SD sigma pixels.
-
-    Independent draw per point and per axis.
-    """
     return [(x + rng.normal(0.0, sigma), y + rng.normal(0.0, sigma))
             for x, y in points]
 
 
 def read_angle(criterion: str, points: List[Point2]) -> float:
-    """Read the criterion's angle from its 2D landmark points, degrees.
-
-    Same constructions as the pipeline: trunk axis vs the +y vertical, the
+    """Same constructions as the pipeline: trunk axis vs the +y vertical, the
     knee/elbow turning angle along the chain, the shoulder interior angle
     at the vertex.
     """
@@ -154,38 +139,24 @@ def read_angle(criterion: str, points: List[Point2]) -> float:
     (fx, fy), (vx, vy), (lx, ly) = points
     if kind == "chain":
         return vector_angle((vx - fx, vy - fy), (lx - vx, ly - vy))
-    # vertex: both arms emanate from the middle point.
     return vector_angle((fx - vx, fy - vy), (lx - vx, ly - vy))
 
 
 def _noisy_projected_angle(criterion: str, projected: List[Point2],
                            sigma: float, rng: np.random.Generator) -> float:
-    """One Monte Carlo draw: perturb the projected points, re-read the angle.
-
-    Takes the already-projected points so the projection is done once per
+    """Takes the already-projected points so the projection is done once per
     (criterion, theta) and only the noise varies across draws.
     """
     return read_angle(criterion, add_noise(projected, sigma, rng))
 
 @dataclass
 class Spread:
-    """Monte Carlo result at one (criterion, theta, sigma): mean and SD of the
-    read angle, degrees. sd_deg is the induced spread the decidability criterion
-    weighs against the band.
-    """
-
     mean_deg: float
     sd_deg: float
 
 
 def angular_spread(criterion: str, a_true: float, theta: float, sigma: float,
                    config: PipelineConfig) -> Spread:
-    """Induced angular spread from landmark noise at one (theta, sigma).
-
-    Projects the criterion's true points once, then perturbs them
-    config.mc_samples times (RNG seeded from config.seed) and reads the
-    angle back each time. Returns the mean and SD of those readings.
-    """
     rng = np.random.default_rng(config.seed)
     projected = project_points(landmark_points(criterion, a_true), theta)
     draws = np.array([
@@ -198,8 +169,7 @@ def angular_spread(criterion: str, a_true: float, theta: float, sigma: float,
 class NoisePropagation:
     """Per-criterion induced spread across the theta sweep at a fixed sigma.
 
-    sd_deg[i] is the angular spread at thetas[i]. a_true and sigma are kept
-    so every output logs the parameters it ran with.
+    sd_deg[i] is the angular spread at thetas[i].
     """
 
     criterion: str
@@ -213,12 +183,6 @@ class NoisePropagation:
 
 def noise_propagation(config: PipelineConfig,
                       sigma: Optional[float] = None) -> List[NoisePropagation]:
-    """Induced angular spread for each criterion over the theta sweep.
-
-    Each true angle is the rule's reference mean. sigma defaults to config.sigma
-    but stays a parameter so each value in config.sigma_sweep can be run in turn;
-    sigma is card-informed and swept, never measured on the clips.
-    """
     if sigma is None:
         sigma = config.sigma
     thetas = theta_values(config)
@@ -234,11 +198,6 @@ def noise_propagation(config: PipelineConfig,
 
 
 def _print_sanity_table(config: PipelineConfig) -> None:
-    """Print the induced angular spread (SD, deg) per criterion over theta.
-
-    A quick eye check, not an artifact: the short arm segments (elbow, shoulder)
-    scatter more than the longer trunk and leg segments.
-    """
     results = noise_propagation(config)
     print(f"induced SD (deg), sigma = {config.sigma} px")
     header = "criterion".ljust(20) + "".join(

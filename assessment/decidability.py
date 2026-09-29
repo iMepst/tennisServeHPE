@@ -6,11 +6,10 @@ projection and landmark noise put into a rule's input) against the rule's
 own band half-width.
 
 Band half-width is one reference SD, so the comparison needs no external
-scale: it asks whether the noise-driven scatter is smaller than the very
+scale: it asks whether the noise-driven scatter is smaller than the
 spread the band is drawn from. Decidable where the induced spread stays
 below the half-width across the expected viewpoint and noise range;
-unreliable where it reaches it -- an input scattering as far as
-centre-to-edge can no longer separate sound from faulty.
+unreliable where it reaches it.
 """
 
 from dataclasses import dataclass
@@ -21,32 +20,17 @@ from serve_pipeline.config import PipelineConfig
 from serve_pipeline.rules import RULES, Rule
 
 # The band half-width is factor * SD with factor exactly 1, the same
-# minimal non-arbitrary choice the rule bands themselves use. It is not a
-# claim that reliability ends precisely at one SD.
+# minimal non-arbitrary choice the rule bands themselves use.
 THRESHOLD_FACTOR = 1.0
 
 
 def band_half_width(rule: Rule) -> float:
-    """The rule's band half-width in degrees: one reference SD (factor 1).
-
-    Both two-sided and one-sided bands are set one SD from the mean, so
-    this half-width is the natural, scale-free yardstick for the induced
-    spread.
-    """
     return THRESHOLD_FACTOR * rule.sd
 
 
 def assess_series(induced_sd: List[float], thetas: List[float],
                   half_width: float) -> Tuple[List[float], List[bool],
                                               Optional[float], str]:
-    """Turn an induced-SD series into a decidability verdict.
-
-    Returns the per-theta ratio (induced SD / half-width), the per-theta
-    decidable flags (True while the spread stays below the half-width), the
-    breakdown theta (first viewpoint where the spread reaches the
-    half-width, or None if it never does), and the overall verdict --
-    "decidable" only if it holds across the whole range.
-    """
     ratio = [sd / half_width for sd in induced_sd]
     decidable = [sd < half_width for sd in induced_sd]
     breakdown = next((th for th, ok in zip(thetas, decidable) if not ok), None)
@@ -78,13 +62,6 @@ class Decidability:
 
 def decidability(config: PipelineConfig,
                  sigma: Optional[float] = None) -> List[Decidability]:
-    """Decidability verdict for each criterion over the theta sweep.
-
-    Draws the induced spread from propagation and holds each induced SD
-    against the rule's band half-width. sigma defaults to config.sigma but
-    stays a parameter so each value in the swept band (config.sigma_sweep) is
-    assessed in turn -- sigma is card-informed and swept, never measured.
-    """
     if sigma is None:
         sigma = config.sigma
     props = {p.criterion: p for p in noise_propagation(config, sigma)}
@@ -103,10 +80,6 @@ def decidability(config: PipelineConfig,
 
 
 def _print_sanity_table(config: PipelineConfig) -> None:
-    """Print the induced-SD / half-width ratio per criterion over theta,
-    with the verdict alongside. A quick eye check, not an output artifact:
-    ratio < 1 means decidable.
-    """
     results = decidability(config)
     print(f"induced SD / band half-width, sigma = {config.sigma} px "
           f"(decidable while < 1)")

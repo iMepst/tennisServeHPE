@@ -30,7 +30,8 @@ Per-clip parameters (recorded manually and passed at runtime): **serving arm**, 
   - Mode: `RunningMode.VIDEO`, tracking a single person (`num_poses = 1`).
   - Confidence thresholds: detection = 0.5, tracking = 0.5, presence = 0.5.
   - Segmentation masks: disabled.
-  - No internal temporal smoothing is applied by the Tasks API; Stage 2 provides the single filtering stage.
+  - Video mode derives the tracking region from the previous frame's landmarks and runs the detector only when no pose is tracked.
+  - Video mode filters internally by default: landmark coordinates pass through a One Euro filter, visibility scores through an exponential low-pass. The Tasks API offers no switch other than image mode, which would also drop tracking. Stage 2 therefore receives already-filtered landmarks and its Butterworth filter runs on top.
 - **Per-frame output**: 33 landmarks in normalized image coordinates `(x, y)` in [0, 1] with an associated `visibility` score.
   - Depth (`z`) and world coordinates are discarded (2D operating point).
   - Frames without a detected pose are retained with unpopulated fields to maintain a contiguous, fixed-length time series.
@@ -54,10 +55,12 @@ Conditioning is applied sequentially using NumPy and SciPy. Parameters follow st
 - The temporal threshold is converted to frames per clip: `max_gap_frames = round(0.120 * fps)`.
 - Boundary gaps and gaps exceeding 120 ms remain unpopulated and are marked as unreliable.
 - Interpolated samples are flagged explicitly (`interpolated = True`) to distinguish them from original measurements.
+- A linear fill holds no interior extremum: a peak hidden in a filled gap is flattened onto the gap edge. This offset is not caught by the Stage 3 guards and enters the measured event error.
 
 ### (c) Low-pass filtering
 - Filter: 2nd-order Butterworth low-pass with an 8 Hz cut-off frequency, applied zero-phase (`scipy.signal.filtfilt`, yielding an effective 4th-order response without phase shift).
-- The 8 Hz physical cut-off is fixed; normalized cut-off coefficients `wn = 8 / (fps / 2)` are computed per clip. The 8 Hz threshold preserves rapid limb motion prior to impact while attenuating high-frequency landmark jitter.
+- The 8 Hz physical cut-off (taken from an optoelectronic tennis serve study) is fixed; normalized cut-off coefficients `wn = 8 / (fps / 2)` are computed per clip. The 8 Hz threshold preserves rapid limb motion prior to impact while attenuating high-frequency landmark jitter.
+- The double pass lowers the effective cut-off to about 6.4-7.0 Hz depending on fps. The nominal cut-off is not raised to compensate.
 - Filtering is executed independently across each contiguous segment of valid/interpolated samples. Unfilled gaps isolate separate segments; runs below the minimum filter length (`3 * (order + 1) + 1`) are retained without smoothing.
 
 ---
@@ -73,11 +76,13 @@ Two kinematic events are detected from body landmarks without requiring ball or 
 ### 3.2 Trophy position
 - **Kinematic proxy**: frame of maximum vertical coordinate ($y$-maximum, lowest image position) for the pelvis midpoint (mean of left and right hip landmarks), evaluated strictly prior to the detected ball impact.
 - The vertical pelvis trajectory remains invariant under orthographic projection across frontal and sagittal viewpoints.
+- The lowest pelvis only approximates maximum knee flexion; its height also depends on the back leg and the stance width.
+- Clips are trimmed to begin at the toss, after any pre-serve ball bouncing, so a bounce crouch cannot pull the pelvis maximum outside the loading phase.
 
 ### Guard conditions (both required for valid event localization)
 1. **Originally reliable sample required**: The located extrema must fall on originally measured samples (`valid = True`, `interpolated = False`) and cannot border an unpopulated gap.
-2. **Kinematic consistency and temporal separation**: The wrist position at ball impact must be strictly higher in the image plane than at the trophy position (`wrist_y[impact] < wrist_y[trophy]`), separated by a non-degenerate window of at least two frames.
-- If either condition is violated, the event is marked as `not locatable`.
+2. **Temporal separation**: At least one frame must lie between trophy and impact (`impact - trophy >= 2`), rejecting a wrist peak so early that no loading phase precedes it. The wrist height is also compared at both events (`wrist_y[impact] < wrist_y[trophy]`); since impact is the wrist's highest point in the clip, this in effect only requires the wrist to be tracked at the trophy frame.
+- If either condition is violated, both events are reported as `not locatable`.
 
 **Input dependence note:** Pelvis position, trunk inclination, and front knee flexion all incorporate hip landmarks; errors in hip estimation influence both event localization and angle calculation simultaneously.
 
@@ -112,7 +117,7 @@ Angle definitions (detailed in `rule_base_spec.md`):
   - One-sided lower bound (`mean - 1 SD`): Front knee flexion (flagging insufficient flexion; deeper flexion remains unpenalized).
 - Status classifications: `inside`, `outside`, or `unavailable`.
 - **Availability gate**: An indicator is generated only when:
-  1. The camera plane matches the criterion (frontal for trunk inclination, sagittal for knee flexion).
+  1. The camera plane matches the criterion (frontal for trunk inclination, sagittal for knee flexion; elbow flexion and shoulder elevation are tied to no fixed plane and are supported by any plane).
   2. The corresponding key frame is successfully localized.
   3. All constituent landmarks are reliable at that frame.
   Otherwise, the indicator is assigned `unavailable`.
@@ -124,10 +129,10 @@ Angle definitions (detailed in `rule_base_spec.md`):
 ```
 serve_pipeline/
   extract.py         # Stage 1: Video decoding, MediaPipe pose extraction, artifact persistence
-  process.py         # Stage 2: Orchestration for gating (2a) and interpolation/filtering (2b)
+  process.py         # Stage 2: Orchestration for gating (2a), interpolation (2b) and filtering (2c)
   gating.py          # Stage 2a: Visibility thresholding and gap statistics
   interpolation.py   # Stage 2b: Linear gap filling under 120 ms
-  filtering.py       # Stage 2b: Butterworth zero-phase filtering
+  filtering.py       # Stage 2c: Butterworth zero-phase filtering
   keyevents.py       # Stage 3: Impact and trophy event detection with guard conditions
   angles.py          # Stage 4: Pixel coordinate scaling and planar vector angle functions
   rules.py           # Stage 5: Reference band definitions and indicator evaluation

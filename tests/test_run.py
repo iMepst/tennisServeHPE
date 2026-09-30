@@ -39,7 +39,9 @@ def _synthetic_frames() -> List[ProcessedFrame]:
     return frames
 
 
-def _setup_clip(results_root: str, clip: str) -> None:
+def test_process_clip_writes_result_json(tmp_path) -> None:
+    results_root = str(tmp_path)
+    clip = "serve_test"
     stage1 = os.path.join(results_root, clip, "stage1")
     stage2 = os.path.join(results_root, clip, "stage2")
     os.makedirs(stage1)
@@ -50,12 +52,6 @@ def _setup_clip(results_root: str, clip: str) -> None:
                    {"video": {"fps": FPS, "width": 1920, "height": 1080}})
     write_filtered_csv(os.path.join(stage2, "filtered.csv"),
                        _synthetic_frames())
-
-
-def test_process_clip_writes_result_json(tmp_path) -> None:
-    results_root = str(tmp_path)
-    clip = "serve_test"
-    _setup_clip(results_root, clip)
 
     out_path = process_clip(
         video_path=os.path.join(results_root, f"{clip}.mp4"),

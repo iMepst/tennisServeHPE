@@ -9,19 +9,14 @@ from serve_pipeline.angles import vector_angle
 from serve_pipeline.config import PipelineConfig
 
 
-def _direct_trunk_projection(a_true: float, theta: float) -> float:
-    """Independent numeric projection of a single trunk segment."""
-    a = math.radians(a_true)
-    axis = (math.sin(a), math.cos(a), 0.0)
-    px, py = project_orthographic(_tilt_about_vertical(axis, theta))
-    return vector_angle((px, py), (0.0, 1.0))
-
-
 @pytest.mark.parametrize("a_true", [10.0, 25.0, 40.0])
 @pytest.mark.parametrize("theta", [0.0, 15.0, 30.0, 45.0])
 def test_trunk_closed_form_matches_direct_numeric(a_true, theta):
+    a = math.radians(a_true)
+    axis = (math.sin(a), math.cos(a), 0.0)
+    px, py = project_orthographic(_tilt_about_vertical(axis, theta))
     assert trunk_projected_angle(a_true, theta) == pytest.approx(
-        _direct_trunk_projection(a_true, theta), abs=1e-9)
+        vector_angle((px, py), (0.0, 1.0)), abs=1e-9)
 
 
 def test_known_theta_foreshortening():

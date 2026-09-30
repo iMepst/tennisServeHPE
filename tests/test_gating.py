@@ -1,5 +1,7 @@
 from typing import Dict, Optional
 
+import pytest
+
 from serve_pipeline.gating import (
     MASK_LOW_VISIBILITY,
     MASK_OK,
@@ -33,10 +35,6 @@ def _detected(idx: int,
 def _undetected(idx: int) -> FramePose:
     return FramePose(frame_index=idx, time_s=idx / FPS,
                      detected=False, landmarks=[])
-
-
-def _lm_stats(stats: dict, name: str) -> dict:
-    return stats["per_landmark"][name]
 
 
 def test_low_visibility_is_masked_others_untouched() -> None:
@@ -89,7 +87,7 @@ def test_single_gap_length_and_bounds() -> None:
         for i in range(10)
     ]
     stats = compute_gap_statistics(gate_frames(frames, 0.5), FPS)
-    lm = _lm_stats(stats, LANDMARK_NAMES[16])
+    lm = stats["per_landmark"][LANDMARK_NAMES[16]]
     assert lm["n_valid"] == 7
     assert lm["valid_rate"] == 7 / 10
     assert lm["num_gaps"] == 1
@@ -107,16 +105,16 @@ def test_multiple_gaps_and_longest() -> None:
         _detected(i, {16: 0.1}) if i in invalid else _detected(i)
         for i in range(8)
     ]
-    lm = _lm_stats(compute_gap_statistics(gate_frames(frames, 0.5), FPS),
-                   LANDMARK_NAMES[16])
+    stats = compute_gap_statistics(gate_frames(frames, 0.5), FPS)
+    lm = stats["per_landmark"][LANDMARK_NAMES[16]]
     assert lm["num_gaps"] == 2
     assert lm["longest_gap_frames"] == 2
 
 
 def test_no_gaps_when_all_valid() -> None:
     frames = [_detected(i) for i in range(5)]
-    lm = _lm_stats(compute_gap_statistics(gate_frames(frames, 0.5), FPS),
-                   LANDMARK_NAMES[16])
+    stats = compute_gap_statistics(gate_frames(frames, 0.5), FPS)
+    lm = stats["per_landmark"][LANDMARK_NAMES[16]]
     assert lm["num_gaps"] == 0
     assert lm["valid_rate"] == 1.0
     assert lm["longest_gap_frames"] == 0
@@ -124,8 +122,8 @@ def test_no_gaps_when_all_valid() -> None:
 
 def test_all_invalid_is_one_full_length_gap() -> None:
     frames = [_undetected(i) for i in range(4)]
-    lm = _lm_stats(compute_gap_statistics(gate_frames(frames, 0.5), FPS),
-                   LANDMARK_NAMES[16])
+    stats = compute_gap_statistics(gate_frames(frames, 0.5), FPS)
+    lm = stats["per_landmark"][LANDMARK_NAMES[16]]
     assert lm["valid_rate"] == 0.0
     assert lm["num_gaps"] == 1
     assert lm["gaps"][0]["length_frames"] == 4
@@ -138,8 +136,8 @@ def test_reason_counts_split_undetected_and_low_vis() -> None:
         _detected(2),
         _detected(3, {16: 0.2}),
     ]
-    lm = _lm_stats(compute_gap_statistics(gate_frames(frames, 0.5), FPS),
-                   LANDMARK_NAMES[16])
+    stats = compute_gap_statistics(gate_frames(frames, 0.5), FPS)
+    lm = stats["per_landmark"][LANDMARK_NAMES[16]]
     assert lm["n_undetected"] == 1
     assert lm["n_low_visibility"] == 2
     assert lm["n_valid"] == 1
@@ -163,8 +161,5 @@ def test_gated_csv_roundtrip(tmp_path) -> None:
             assert si.valid == so.valid
             assert si.mask_reason == so.mask_reason
             for fld in _VALUE_FIELDS:
-                a, b = getattr(si, fld), getattr(so, fld)
-                if a is None:
-                    assert b is None
-                else:
-                    assert abs(a - b) < 1e-6
+                assert getattr(so, fld) == pytest.approx(getattr(si, fld),
+                                                         abs=1e-6)

@@ -1,3 +1,5 @@
+import cv2
+
 from serve_pipeline.landmarks import NUM_LANDMARKS, POSE_CONNECTIONS
 from serve_pipeline.visualization import (
     draw_pose,
@@ -54,7 +56,6 @@ def test_contact_sheet(tmp_path, blank_frame):
     images = [blank_frame.copy() for _ in range(6)]
     path = str(tmp_path / "sheet.png")
     save_contact_sheet(path, images, columns=4, thumb_width=100)
-    import cv2
     sheet = cv2.imread(path)
     assert sheet is not None
     assert sheet.shape[1] == 4 * 100

@@ -31,7 +31,9 @@ Preconditions applied across all rules:
 | R3 | Elbow flexion | Ball impact | 29.2 (SD 9.9)* | outside 19.3-39.1 | two-sided | shoulder to elbow vs. elbow to wrist |
 | R4 | Shoulder elevation | Ball impact | 104.6 (SD 6.1)* | outside 98.5-110.7 | two-sided | shoulder to elbow vs. trunk (shoulder to hip) |
 
-* Values derived following the post-hoc exclusion of non-homogeneous reference studies.
+* Values recomputed after the post-hoc exclusion of two deviating reference studies.
+
+**Core** criteria stay below the 20 deg dispersion threshold across all studies; **conditional** criteria reach it only after the post-hoc exclusion.
 
 ---
 
@@ -44,6 +46,7 @@ Preconditions applied across all rules:
 - **Interpretation**: An upright torso yields approximately 0 deg; lateral lean corresponds directly to the inclination magnitude.
 - **Band**: Two-sided range `[17.9, 32.1]` deg (`25.0 +/- 7.1`).
 - **Limitation**: Evaluated along the hip-to-shoulder axis rather than the internal spine segment (treated as a definitional offset under limitations).
+- **Limitation**: Read against the image vertical, while the reference is taken relative to the pelvis. A pelvis reference would rest on the short hip-to-hip line, which the same landmark error tilts much more. The resulting offset equals the lateral pelvis tilt and stays unquantified.
 
 ### R2 - Front knee flexion (core)
 - **Key frame**: Trophy position.
@@ -54,13 +57,15 @@ Preconditions applied across all rules:
 
 ### R3 - Elbow flexion (conditional)
 - **Key frame**: Ball impact.
+- **Plane**: Any (tied to no fixed plane; no camera-placement constraint).
 - **Vectors**: Turning angle between shoulder-to-elbow and elbow-to-wrist vectors along the serving arm.
 - **Side selection**: Specified by the `serving_arm` parameter.
 - **Band**: Two-sided range `[19.3, 39.1]` deg (`29.2 +/- 9.9`).
-- **Limitation**: Evaluated at impact near full extension, where axial humerus rotation cannot be reconstructed from 2D landmarks.
+- **Limitation**: Evaluated at impact near full extension, where shoulder, elbow and wrist lie almost on one line, so a small landmark error shifts the angle by a large share of its value.
 
 ### R4 - Shoulder elevation (conditional)
 - **Key frame**: Ball impact.
+- **Plane**: Any (tied to no fixed plane; no camera-placement constraint).
 - **Vectors**: Enclosed angle at the serving shoulder between upper arm (shoulder to elbow) and ipsilateral torso (shoulder to hip).
 - **Side selection**: Specified by the `serving_arm` parameter.
 - **Band**: Two-sided range `[98.5, 110.7]` deg (`104.6 +/- 6.1`).
@@ -70,13 +75,13 @@ Preconditions applied across all rules:
 ## 3. Excluded criteria
 
 - **Back knee flexion**: Excluded due to excessive inter-study dispersion.
-- **Shoulder external rotation**: Excluded because axial rotation about the longitudinal bone axis cannot be measured from 2D point landmarks, and the racket low point is not identifiable from body landmarks.
+- **Shoulder external rotation**: Excluded on two grounds: excessive inter-study dispersion, and axial rotation about the longitudinal bone axis cannot be recovered from 2D point landmarks. Its key point, the racket low point, is defined by maximum external rotation and racket orientation, neither of which the setup observes.
 
 ---
 
 ## 4. Evaluation constraints
 
 1. **Orthogonal camera planes**: Trunk inclination (frontal) and front knee flexion (sagittal) occupy perpendicular planes. A monocular recording cleanly observes only the in-plane criterion; the orthogonal criterion is subject to foreshortening and marked `unavailable`.
-2. **Body landmark localization**: Key frames are identified strictly from body landmarks (ball impact via wrist height peak; trophy position via pelvis depth peak prior to impact).
+2. **Body landmark localization**: Key frames are identified strictly from body landmarks (ball impact via wrist height peak; trophy position via lowest pelvis position, i.e. image-y maximum, prior to impact).
 3. **Reliability gating**: Evaluation requires `visibility >= 0.5` across all required landmarks at the key frame.
 4. **Composite availability**: An indicator is computed only when camera plane support, successful event detection, and landmark reliability are simultaneously satisfied.

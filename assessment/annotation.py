@@ -45,25 +45,6 @@ def read_event_annotations(path: str) -> List[EventAnnotation]:
                 for row in reader]
 
 
-def _detect_events(clip: str, results_root: str
-                   ) -> Tuple[Optional[int], Optional[int]]:
-    result = read_metadata(os.path.join(results_root, clip, "result.json"))
-    clip_params = ClipParams(**result["clip_params"])
-    frames = read_filtered_csv(
-        os.path.join(results_root, clip, "stage2", "filtered.csv"))
-    events = detect_key_events(frames, clip_params)
-    trophy = events.trophy_frame if events.trophy_locatable else None
-    impact = events.impact_frame if events.impact_locatable else None
-    return trophy, impact
-
-
-def _robust_spread(values: List[int]) -> float:
-    if len(values) < 2:
-        return math.nan
-    q1, _median, q3 = statistics.quantiles(values, n=4)
-    return q3 - q1
-
-
 @dataclass
 class EventStats:
     """Offset statistics for one event type (trophy or impact) across clips.
@@ -111,14 +92,19 @@ def _event_stats(event: str, offsets: List[Optional[int]],
         move_rate_by_tolerance[tol] = (
             n_needs_move / n_clips if n_clips else math.nan)
 
+    iqr_offset = math.nan
+    if len(located) >= 2:
+        q1, _, q3 = statistics.quantiles(located, n=4)
+        iqr_offset = q3 - q1
+
     return EventStats(
         event=event, n_clips=n_clips, n_locatable=len(located),
         n_not_locatable=n_not_locatable,
-        tolerances=tuple(tolerances),
+        tolerances=tolerances,
         n_moved_by_tolerance=n_moved_by_tolerance,
         move_rate_by_tolerance=move_rate_by_tolerance,
         median_offset=statistics.median(located) if located else math.nan,
-        iqr_offset=_robust_spread(located),
+        iqr_offset=iqr_offset,
         max_abs_offset=float(max(abs(o) for o in located))
         if located else math.nan,
         large_offset_frames=large_offset_frames,
@@ -148,13 +134,18 @@ def estimate_event_error(annotations: List[EventAnnotation],
     trophy_offsets: List[Optional[int]] = []
     impact_offsets: List[Optional[int]] = []
     for ann in annotations:
-        det_trophy, det_impact = _detect_events(ann.clip, results_root)
+        clip_dir = os.path.join(results_root, ann.clip)
+        result = read_metadata(os.path.join(clip_dir, "result.json"))
+        frames = read_filtered_csv(
+            os.path.join(clip_dir, "stage2", "filtered.csv"))
+        events = detect_key_events(frames,
+                                   ClipParams(**result["clip_params"]))
         trophy_offsets.append(
-            None if det_trophy is None
-            else det_trophy - ann.true_trophy_frame)
+            None if events.trophy_frame is None
+            else events.trophy_frame - ann.true_trophy_frame)
         impact_offsets.append(
-            None if det_impact is None
-            else det_impact - ann.true_impact_frame)
+            None if events.impact_frame is None
+            else events.impact_frame - ann.true_impact_frame)
 
     return EventError(
         n_clips=len(annotations),

@@ -193,10 +193,6 @@ _DECIDABILITY_VMIN = 0.0
 _DECIDABILITY_VMAX = 1.1
 
 
-def _dec_by_criterion(point: SigmaPoint) -> Dict[str, Any]:
-    return {d.criterion: d for d in point.decidability}
-
-
 def _plot_projection_curves(curves: List[ProjectionCurve], path: str) -> str:
     import matplotlib
     matplotlib.use("Agg")
@@ -290,7 +286,8 @@ def _plot_decidability_map(sweep: List[SigmaPoint], path: str) -> str:
     for ax, criterion in zip(axes.flat, criteria):
         # Ratio grid: rows are sigma (ascending), columns theta.
         grid = np.array([
-            _dec_by_criterion(point)[criterion].ratio for point in sweep])
+            {d.criterion: d for d in point.decidability}[criterion].ratio
+            for point in sweep])
         mesh = ax.pcolormesh(thetas, sigmas, grid, shading="nearest",
                              cmap="cividis", vmin=_DECIDABILITY_VMIN,
                              vmax=_DECIDABILITY_VMAX)

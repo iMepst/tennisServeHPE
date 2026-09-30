@@ -142,13 +142,6 @@ def read_angle(criterion: str, points: List[Point2]) -> float:
     return vector_angle((fx - vx, fy - vy), (lx - vx, ly - vy))
 
 
-def _noisy_projected_angle(criterion: str, projected: List[Point2],
-                           sigma: float, rng: np.random.Generator) -> float:
-    """Takes the already-projected points so the projection is done once per
-    (criterion, theta) and only the noise varies across draws.
-    """
-    return read_angle(criterion, add_noise(projected, sigma, rng))
-
 @dataclass
 class Spread:
     mean_deg: float
@@ -160,7 +153,7 @@ def angular_spread(criterion: str, a_true: float, theta: float, sigma: float,
     rng = np.random.default_rng(config.seed)
     projected = project_points(landmark_points(criterion, a_true), theta)
     draws = np.array([
-        _noisy_projected_angle(criterion, projected, sigma, rng)
+        read_angle(criterion, add_noise(projected, sigma, rng))
         for _ in range(config.mc_samples)])
     return Spread(mean_deg=float(draws.mean()),
                   sd_deg=float(draws.std(ddof=1)))

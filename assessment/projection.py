@@ -79,9 +79,6 @@ def theta_values(config: PipelineConfig) -> List[float]:
     return [lo + i * step for i in range(n + 1)]
 
 
-_CLOSED_FORM = {"trunk_inclination"}
-
-
 @dataclass
 class ProjectionCurve:
     """Per-criterion projected angle across the theta sweep.
@@ -101,7 +98,7 @@ def projection_curves(config: PipelineConfig) -> List[ProjectionCurve]:
     thetas = theta_values(config)
     curves: List[ProjectionCurve] = []
     for rule in RULES:
-        closed = rule.id in _CLOSED_FORM
+        closed = rule.id == "trunk_inclination"
         model = trunk_projected_angle if closed else numeric_projected_angle
         projected = [model(rule.mean, th) for th in thetas]
         curves.append(ProjectionCurve(

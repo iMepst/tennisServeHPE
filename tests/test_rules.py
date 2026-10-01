@@ -79,7 +79,6 @@ def test_plane_support() -> None:
 
 def test_evaluate_all_frontal_reads_trunk_not_knee() -> None:
     readings = AngleReadings(
-        trophy_frame=5, impact_frame=10,
         trunk_inclination=40.0, front_knee_flexion=60.0,
         elbow_flexion=30.0, shoulder_elevation=105.0)
     ind = evaluate_all(readings, _params("frontal"))
@@ -97,7 +96,6 @@ def test_evaluate_all_frontal_reads_trunk_not_knee() -> None:
 
 def test_evaluate_all_sagittal_reads_knee_not_trunk() -> None:
     readings = AngleReadings(
-        trophy_frame=5, impact_frame=10,
         trunk_inclination=25.0, front_knee_flexion=50.0,
         elbow_flexion=30.0, shoulder_elevation=105.0)
     ind = evaluate_all(readings, _params("sagittal"))
@@ -110,7 +108,6 @@ def test_evaluate_all_sagittal_reads_knee_not_trunk() -> None:
 
 def test_evaluate_all_unreadable_angle_is_unavailable() -> None:
     readings = AngleReadings(
-        trophy_frame=5, impact_frame=None,
         trunk_inclination=25.0, front_knee_flexion=None,
         elbow_flexion=None, shoulder_elevation=None)
     ind = evaluate_all(readings, _params("frontal"))
@@ -118,3 +115,8 @@ def test_evaluate_all_unreadable_angle_is_unavailable() -> None:
     elbow = _indicator(ind, "elbow_flexion")
     assert elbow.status == "unavailable" and elbow.angle is None
     assert "locatable" in elbow.detail or "unreliable" in elbow.detail
+
+
+def test_clip_params_reject_oblique_plane() -> None:
+    with pytest.raises(ValueError, match="camera_plane"):
+        _params("oblique")

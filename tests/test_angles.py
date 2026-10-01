@@ -160,10 +160,9 @@ def test_front_knee_flexion_reads_the_front_leg() -> None:
     assert straight == pytest.approx(0.0)
 
 
-def test_front_knee_flexion_rejects_unknown_side() -> None:
+def test_clip_params_reject_unknown_front_leg() -> None:
     with pytest.raises(ValueError, match="front_leg"):
-        front_knee_flexion(_frame(_LEGS),
-                           _params(1000, 1000, front_leg="both"))
+        _params(1000, 1000, front_leg="both")
 
 
 _ARMS = {
@@ -182,10 +181,9 @@ def test_elbow_flexion_reads_the_serving_arm() -> None:
     assert straight == pytest.approx(0.0)
 
 
-def test_elbow_flexion_rejects_unknown_side() -> None:
+def test_clip_params_reject_unknown_serving_arm() -> None:
     with pytest.raises(ValueError, match="serving_arm"):
-        elbow_flexion(_frame(_ARMS),
-                      _params(1000, 1000, serving_arm="up"))
+        _params(1000, 1000, serving_arm="up")
 
 
 def test_shoulder_elevation_zero_with_arm_along_trunk() -> None:
@@ -264,7 +262,6 @@ def _frames_with(trophy_idx: int, impact_idx: int) -> list:
 
 def _locatable(trophy: int, impact: int) -> KeyEvents:
     return KeyEvents(trophy_frame=trophy, impact_frame=impact,
-                     trophy_locatable=True, impact_locatable=True,
                      reason="ok")
 
 
@@ -272,7 +269,6 @@ def test_compute_angles_reads_each_at_its_key_frame() -> None:
     params = _params(1000, 1000, serving_arm="right", front_leg="left")
     frames = _frames_with(1, 3)
     readings = compute_angles(frames, _locatable(1, 3), params)
-    assert (readings.trophy_frame, readings.impact_frame) == (1, 3)
     assert readings.trunk_inclination == pytest.approx(
         trunk_inclination(frames[1], params))
     assert readings.front_knee_flexion == pytest.approx(
@@ -296,16 +292,14 @@ def test_compute_angles_skips_unlocatable_event() -> None:
     params = _params(1000, 1000, serving_arm="right", front_leg="left")
     frames = _frames_with(1, 3)
     events = KeyEvents(trophy_frame=None, impact_frame=3,
-                       trophy_locatable=False, impact_locatable=True,
                        reason="trophy: no reliable samples in the series")
     readings = compute_angles(frames, events, params)
-    assert readings.trophy_frame is None
     assert readings.trunk_inclination is None
     assert readings.front_knee_flexion is None
-    assert readings.impact_frame == 3 and readings.elbow_flexion is not None
+    assert readings.elbow_flexion is not None
 
 
 def test_angle_readings_defaults_to_none() -> None:
-    readings = AngleReadings(None, None, None, None, None, None)
+    readings = AngleReadings(None, None, None, None)
     assert readings.trunk_inclination is None
     assert readings.shoulder_elevation is None

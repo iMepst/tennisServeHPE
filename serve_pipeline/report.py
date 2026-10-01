@@ -67,8 +67,8 @@ def indicator_rows(clips: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
                             else rule.hi),
                 "band_kind": rule.band_kind,
                 "detail": ind["detail"],
-                "trophy_locatable": events["trophy_locatable"],
-                "impact_locatable": events["impact_locatable"],
+                "trophy_locatable": events["trophy_frame"] is not None,
+                "impact_locatable": events["impact_frame"] is not None,
             })
     return rows
 
@@ -88,7 +88,7 @@ def key_frame_candidates(clips: List[Dict[str, Any]],
     out: List[str] = []
     for clip in clips:
         events = clip["key_events"]
-        if not (events["trophy_locatable"] and events["impact_locatable"]):
+        if events["trophy_frame"] is None or events["impact_frame"] is None:
             continue
         png = os.path.join(results_root, clip["clip"], "key_frames.png")
         if os.path.isfile(png):
@@ -123,13 +123,8 @@ def plot_angles_vs_bands(clips: List[Dict[str, Any]], path: str,
                 continue
             color = "tab:blue" if ind["status"] == "inside" else "tab:red"
             ax.plot(x, ind["angle"], "o", color=color, alpha=0.8)
-    # One-sided (lower-bound) criteria: everything above the threshold is
-    # compliant, so shade upward from the threshold. The solid lower edge is
-    # the only decision line; the fill is capped at an anatomical
-    # plausibility bound (dashed, presentation only) rather than running to
-    # the shoulder-driven axis top. The rule itself stays one-sided. The cap
-    # sits below the shoulder-driven axis top, so the shared range is
-    # unchanged.
+    # One-sided criteria: shade upward from the threshold to the
+    # plausibility cap.
     for x, rule in one_sided:
         ax.add_patch(plt.Rectangle((x - 0.3, rule.lo), 0.6,
                                    knee_cap_deg - rule.lo,

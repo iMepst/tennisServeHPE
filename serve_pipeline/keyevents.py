@@ -53,9 +53,6 @@ def detect_ball_impact(frames: List[ProcessedFrame],
     """Ball-impact proxy: racket-arm wrist y-minimum, its highest point
     (image y grows downward), the extended reach at contact.
     """
-    if serving_arm not in ("left", "right"):
-        raise ValueError(
-            f"serving_arm must be 'left' or 'right', got {serving_arm!r}")
     wrist_id = NAME_TO_ID[f"{serving_arm}_wrist"]
     y, original = landmark_y_series(frames, wrist_id)
     return guarded_extremum(y, original, "min")
@@ -88,10 +85,10 @@ def detect_trophy(frames: List[ProcessedFrame],
 
 @dataclass
 class KeyEvents:
+    """Located key frames; both None when the events are not locatable."""
+
     trophy_frame: Optional[int]
     impact_frame: Optional[int]
-    trophy_locatable: bool
-    impact_locatable: bool
     reason: str
 
 
@@ -105,24 +102,23 @@ def detect_key_events(frames: List[ProcessedFrame],
     """
     impact_pos, reason = detect_ball_impact(frames, clip_params.serving_arm)
     if impact_pos is None:
-        return KeyEvents(None, None, False, False, f"impact: {reason}")
+        return KeyEvents(None, None, f"impact: {reason}")
     trophy_pos, reason = detect_trophy(frames, impact_pos)
     if trophy_pos is None:
-        return KeyEvents(None, None, False, False, f"trophy: {reason}")
+        return KeyEvents(None, None, f"trophy: {reason}")
 
     wrist_y, _ = landmark_y_series(
         frames, NAME_TO_ID[f"{clip_params.serving_arm}_wrist"])
     # NaN at trophy makes the comparison False, rejecting the impact too.
     if not wrist_y[impact_pos] < wrist_y[trophy_pos]:
-        return KeyEvents(None, None, False, False,
+        return KeyEvents(None, None,
                          "impact: wrist not above its trophy height")
     if impact_pos - trophy_pos < 2:
-        return KeyEvents(None, None, False, False,
+        return KeyEvents(None, None,
                          "impact: degenerate window between trophy "
                          "and impact")
     return KeyEvents(trophy_frame=frames[trophy_pos].frame_index,
                      impact_frame=frames[impact_pos].frame_index,
-                     trophy_locatable=True, impact_locatable=True,
                      reason="ok")
 
 
@@ -142,11 +138,9 @@ def flag_possible_slow_motion(key_events: KeyEvents, fps: float,
     Diagnostic only: never touches fps or the detection; not assessable
     when either event is missing.
     """
-    if not (key_events.trophy_locatable and key_events.impact_locatable):
+    if key_events.trophy_frame is None or key_events.impact_frame is None:
         return SlowMotionFlag(assessable=False, likely_slow_motion=False,
                               trophy_to_impact_s=None)
-    assert key_events.impact_frame is not None
-    assert key_events.trophy_frame is not None
     span_s = (key_events.impact_frame - key_events.trophy_frame) / fps
     return SlowMotionFlag(assessable=True,
                           likely_slow_motion=span_s > max_real_seconds,

@@ -1,7 +1,6 @@
 from typing import List, Optional
 
 import numpy as np
-import pytest
 
 from serve_pipeline.config import ClipParams
 from serve_pipeline.interpolation import ProcessedFrame, ProcessedSample
@@ -127,11 +126,6 @@ def test_impact_guard_failure_propagates() -> None:
     assert "interpolated" in reason
 
 
-def test_impact_rejects_unknown_arm() -> None:
-    with pytest.raises(ValueError, match="serving_arm"):
-        detect_ball_impact(_series([0.5]), "both")
-
-
 def test_midhip_is_the_mean_of_both_hips() -> None:
     frames = _series([0.7, 0.9], lm_id=NAME_TO_ID["left_hip"])
     y, original = midhip_y_series(frames)
@@ -192,7 +186,6 @@ def test_key_events_happy_path() -> None:
         [0.6, 0.7, 0.9, 0.8, 0.7, 0.6, 0.6, 0.6, 0.6, 0.6])
     ev = detect_key_events(frames, _PARAMS)
     assert (ev.trophy_frame, ev.impact_frame) == (2, 8)
-    assert ev.trophy_locatable and ev.impact_locatable
     assert ev.reason == "ok"
 
 
@@ -201,7 +194,7 @@ def test_key_events_impact_failure_propagates() -> None:
         [0.8, 0.7, 0.2, 0.5], [0.6, 0.9, 0.8, 0.7],
         wrist_states=["ok", "ok", "interp", "ok"])
     ev = detect_key_events(frames, _PARAMS)
-    assert not ev.impact_locatable and not ev.trophy_locatable
+    assert ev.trophy_frame is None and ev.impact_frame is None
     assert ev.reason.startswith("impact:")
 
 
@@ -212,7 +205,7 @@ def test_key_events_reject_unreadable_wrist_at_trophy() -> None:
         wrist_states=["ok", "ok", "gap", "ok", "ok",
                       "ok", "ok", "ok", "ok", "ok"])
     ev = detect_key_events(frames, _PARAMS)
-    assert not ev.impact_locatable
+    assert ev.trophy_frame is None and ev.impact_frame is None
     assert "trophy height" in ev.reason
 
 
@@ -221,7 +214,7 @@ def test_key_events_low_contact_collapses_the_window() -> None:
         [0.5, 0.2, 0.5, 0.45, 0.4, 0.38],
         [0.9, 0.8, 0.7, 0.6, 0.6, 0.6])
     ev = detect_key_events(frames, _PARAMS)
-    assert not ev.impact_locatable and not ev.trophy_locatable
+    assert ev.trophy_frame is None and ev.impact_frame is None
     assert "degenerate window" in ev.reason
 
 
@@ -230,13 +223,12 @@ def test_key_events_reject_degenerate_window() -> None:
         [0.5, 0.45, 0.4, 0.35, 0.3],
         [0.6, 0.7, 0.8, 0.9, 0.6])
     ev = detect_key_events(frames, _PARAMS)
-    assert not ev.impact_locatable
+    assert ev.trophy_frame is None and ev.impact_frame is None
     assert "degenerate window" in ev.reason
 
 
 def test_slow_motion_flag_on_long_span() -> None:
     ev = KeyEvents(trophy_frame=100, impact_frame=200,
-                   trophy_locatable=True, impact_locatable=True,
                    reason="ok")
     flag = flag_possible_slow_motion(ev, fps=25.0)
     assert flag.assessable and flag.likely_slow_motion
@@ -245,7 +237,6 @@ def test_slow_motion_flag_on_long_span() -> None:
 
 def test_slow_motion_flag_off_for_real_time_span() -> None:
     ev = KeyEvents(trophy_frame=100, impact_frame=120,
-                   trophy_locatable=True, impact_locatable=True,
                    reason="ok")
     flag = flag_possible_slow_motion(ev, fps=25.0)
     assert flag.assessable and not flag.likely_slow_motion
@@ -253,7 +244,7 @@ def test_slow_motion_flag_off_for_real_time_span() -> None:
 
 
 def test_slow_motion_flag_not_assessable_without_events() -> None:
-    ev = KeyEvents(None, None, False, False, "impact: no reliable samples")
+    ev = KeyEvents(None, None, "impact: no reliable samples")
     flag = flag_possible_slow_motion(ev, fps=25.0)
     assert not flag.assessable
     assert flag.trophy_to_impact_s is None

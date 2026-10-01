@@ -25,8 +25,13 @@ from .keyevents import (
     detect_key_events,
     flag_possible_slow_motion,
 )
-from .layout import STAGE1, STAGE2, clip_from_stage_file, clip_from_video, \
-    stage_dir
+from .layout import (
+    STAGE1,
+    STAGE2,
+    clip_from_stage_file,
+    clip_from_video,
+    stage_dir,
+)
 from .persistence import (
     git_commit_hash,
     read_filtered_csv,
@@ -183,12 +188,12 @@ def write_key_frame_stills(video_path: str, stage1_meta: str,
     by_crit = {i["criterion"]: i for i in indicators}
     plane = result.clip_params.camera_plane
     specs: List[Tuple[int, List[str]]] = []
-    if ev.trophy_locatable and ev.trophy_frame is not None:
+    if ev.trophy_frame is not None:
         specs.append((ev.trophy_frame, [
             f"TROPHY  frame {ev.trophy_frame}",
             _angle_line("trunk incl.", "trunk_inclination", by_crit, plane),
             _angle_line("knee flex", "front_knee_flexion", by_crit, plane)]))
-    if ev.impact_locatable and ev.impact_frame is not None:
+    if ev.impact_frame is not None:
         specs.append((ev.impact_frame, [
             f"IMPACT  frame {ev.impact_frame}",
             _angle_line("elbow flex", "elbow_flexion", by_crit, plane),
@@ -220,7 +225,7 @@ def _log_summary(result: ClipResult, record: Dict[str, Any],
     logger.info("  result JSON: %s", out_path)
     if stills_path is not None:
         logger.info("  key stills:  %s", stills_path)
-    if ev.trophy_locatable and ev.impact_locatable:
+    if ev.trophy_frame is not None and ev.impact_frame is not None:
         logger.info("  key frames:  trophy %d, impact %d",
                     ev.trophy_frame, ev.impact_frame)
     else:

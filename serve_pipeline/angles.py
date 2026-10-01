@@ -72,11 +72,6 @@ def turning_angle(frame: ProcessedFrame, first: str, middle: str,
     return vector_angle((bx - ax, by - ay), (cx - bx, cy - by))
 
 
-def _check_side(name: str, side: str) -> None:
-    if side not in ("left", "right"):
-        raise ValueError(f"{name} must be 'left' or 'right', got {side!r}")
-
-
 def front_knee_flexion(frame: ProcessedFrame,
                        clip_params: ClipParams) -> float:
     """Front knee flexion at the trophy frame (R2).
@@ -84,7 +79,6 @@ def front_knee_flexion(frame: ProcessedFrame,
     Turning angle hip->knee vs knee->ankle, front leg: straight ~0.
     """
     side = clip_params.front_leg
-    _check_side("front_leg", side)
     return turning_angle(frame, f"{side}_hip", f"{side}_knee",
                          f"{side}_ankle", clip_params)
 
@@ -96,7 +90,6 @@ def elbow_flexion(frame: ProcessedFrame,
     Turning angle shoulder->elbow vs elbow->wrist, serving arm: straight ~0.
     """
     side = clip_params.serving_arm
-    _check_side("serving_arm", side)
     return turning_angle(frame, f"{side}_shoulder", f"{side}_elbow",
                          f"{side}_wrist", clip_params)
 
@@ -109,7 +102,6 @@ def shoulder_elevation(frame: ProcessedFrame,
     arm along the trunk ~0, raised = larger.
     """
     side = clip_params.serving_arm
-    _check_side("serving_arm", side)
     sx, sy = landmark_pixel(frame, f"{side}_shoulder", clip_params)
     ex, ey = landmark_pixel(frame, f"{side}_elbow", clip_params)
     hx, hy = landmark_pixel(frame, f"{side}_hip", clip_params)
@@ -139,14 +131,10 @@ def trunk_inclination(frame: ProcessedFrame,
 
 @dataclass
 class AngleReadings:
-    """The four candidate angles (None when unavailable) with the key frame
-    each was read at.
+    """The four candidate angles, None when unavailable.
 
-    Trunk and knee at the trophy frame; elbow and shoulder at impact. A frame
-    is None when its event is not locatable.
+    Trunk and knee at the trophy frame; elbow and shoulder at impact.
     """
-    trophy_frame: Optional[int]
-    impact_frame: Optional[int]
     trunk_inclination: Optional[float]
     front_knee_flexion: Optional[float]
     elbow_flexion: Optional[float]
@@ -174,17 +162,13 @@ def compute_angles(frames: List[ProcessedFrame], key_events: KeyEvents,
 
     Each angle is gated on its own landmarks; an unavailable one stays None,
     and a non-locatable event leaves both of its angles None.
-
-    Shared-input dependence, by design: trunk inclination and front knee
-    flexion both read at the trophy frame and both from the hips, so a hip
-    error shifts the trophy frame and both angles together. Not corrected.
     """
     arm = clip_params.serving_arm
     leg = clip_params.front_leg
 
     trunk = knee = elbow = shoulder = None
 
-    if key_events.trophy_locatable and key_events.trophy_frame is not None:
+    if key_events.trophy_frame is not None:
         frame = _frame_at(frames, key_events.trophy_frame)
         trunk = _gated(
             frame,
@@ -194,7 +178,7 @@ def compute_angles(frames: List[ProcessedFrame], key_events: KeyEvents,
             frame, [f"{leg}_hip", f"{leg}_knee", f"{leg}_ankle"],
             lambda f: front_knee_flexion(f, clip_params))
 
-    if key_events.impact_locatable and key_events.impact_frame is not None:
+    if key_events.impact_frame is not None:
         frame = _frame_at(frames, key_events.impact_frame)
         elbow = _gated(
             frame, [f"{arm}_shoulder", f"{arm}_elbow", f"{arm}_wrist"],
@@ -204,9 +188,5 @@ def compute_angles(frames: List[ProcessedFrame], key_events: KeyEvents,
             lambda f: shoulder_elevation(f, clip_params))
 
     return AngleReadings(
-        trophy_frame=key_events.trophy_frame if key_events.trophy_locatable
-        else None,
-        impact_frame=key_events.impact_frame if key_events.impact_locatable
-        else None,
         trunk_inclination=trunk, front_knee_flexion=knee,
         elbow_flexion=elbow, shoulder_elevation=shoulder)

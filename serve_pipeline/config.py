@@ -1,8 +1,8 @@
 """Central configuration for the serve pipeline.
 
-Fixed parameters prescribed by the specs, each annotated with its origin.
-Per-clip parameters (serving arm, front leg, camera plane, fps) are recorded
-manually per recording and passed separately.
+Fixed parameters prescribed by the specs (docs/). Per-clip parameters
+(serving arm, front leg, camera plane, fps) are recorded manually per
+recording and passed separately.
 """
 
 import os
@@ -60,3 +60,14 @@ class ClipParams:
 
     frame_width: int
     frame_height: int
+
+    def __post_init__(self) -> None:
+        for name in ("serving_arm", "front_leg"):
+            side = getattr(self, name)
+            if side not in ("left", "right"):
+                raise ValueError(
+                    f"{name} must be 'left' or 'right', got {side!r}")
+        if self.camera_plane not in ("frontal", "sagittal"):
+            raise ValueError(
+                "camera_plane must be 'frontal' or 'sagittal', got "
+                f"{self.camera_plane!r}")

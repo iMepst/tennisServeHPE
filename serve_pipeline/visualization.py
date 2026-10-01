@@ -1,4 +1,4 @@
-from typing import List, Optional, Sequence, Tuple
+from typing import Dict, List, Optional, Sequence, Tuple
 
 import cv2
 import numpy as np
@@ -101,7 +101,7 @@ def save_key_frame_stills(video_path: str, frame_poses: List[FramePose],
                           out_path: str) -> Optional[str]:
     poses = {fp.frame_index: fp for fp in frame_poses}
     wanted = {idx for idx, _ in specs}
-    images: dict = {}
+    images: Dict[int, BgrImage] = {}
     with VideoReader(video_path) as reader:
         for frame in reader:
             if frame.index in wanted:

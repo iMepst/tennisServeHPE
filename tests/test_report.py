@@ -26,7 +26,8 @@ def _write_clip(root: str, clip: str, plane: str, trophy: bool, impact: bool,
     write_metadata(os.path.join(clip_dir, "result.json"), {
         "clip": clip,
         "clip_params": {"camera_plane": plane, "view_direction": "front"},
-        "key_events": {"trophy_locatable": trophy, "impact_locatable": impact},
+        "key_events": {"trophy_frame": 8 if trophy else None,
+                       "impact_frame": 18 if impact else None},
         "indicators": indicators,
     })
 

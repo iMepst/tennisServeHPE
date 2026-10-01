@@ -5,8 +5,9 @@ to body scale). No recordings: the true angle is prescribed by construction and
 its projection computed.
 
 theta is the angle between the motion plane (where the joint moves) and the
-image plane. It is not a single known value (partly camera placement, partly the
-player's lean, unknown before the serve), so every quantity is swept over theta.
+image plane. It is not a single known value (partly camera placement, partly
+the player's lean, unknown before the serve), so every quantity is swept over
+theta.
 """
 
 import math
@@ -23,7 +24,8 @@ def _tilt_about_vertical(v: Tuple[float, float, float],
     """Rotate a 3D direction by theta (deg) about the vertical y axis.
 
     The vertical is where the motion plane meets the image plane, so rotating
-    about it by theta swings a point out of the image plane by exactly that angle.
+    about it by theta swings a point out of the image plane by exactly that
+    angle.
     """
     t = math.radians(theta)
     x, y, z = v
@@ -37,12 +39,13 @@ def numeric_projected_angle(a_true: float, theta: float) -> float:
 
     Knee, elbow and shoulder are two segments meeting at a joint; unlike the
     trunk there is no closed form. The segments are placed symmetrically about
-    the vertical at half the enclosed angle, the joint plane is tilted by theta,
-    each segment projected orthographically, and the angle re-read with
+    the vertical at half the enclosed angle, the joint plane is tilted by
+    theta, each segment projected orthographically, and the angle re-read with
     vector_angle.
 
-    Simplification: both segments share one out-of-plane tilt (a coplanar joint).
-    Independent tilts would need a two-parameter sweep; left as a documented limit.
+    Simplification: both segments share one out-of-plane tilt (a coplanar
+    joint). Independent tilts would need a two-parameter sweep; left as a
+    documented limit.
     """
     h = math.radians(a_true / 2.0)
     arm_left = (-math.sin(h), math.cos(h), 0.0)
@@ -83,8 +86,9 @@ def theta_values(config: PipelineConfig) -> List[float]:
 class ProjectionCurve:
     """Per-criterion projected angle across the theta sweep.
 
-    a_true is the prescribed true angle (each rule's reference mean); projected[i]
-    is how it appears at thetas[i]. kind is "closed_form" (trunk) or "numeric".
+    a_true is the prescribed true angle (each rule's reference mean);
+    projected[i] is how it appears at thetas[i]. kind is "closed_form" (trunk)
+    or "numeric".
     """
 
     criterion: str

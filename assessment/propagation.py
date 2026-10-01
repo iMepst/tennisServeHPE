@@ -22,7 +22,7 @@ import numpy as np
 from serve_pipeline.config import PipelineConfig
 
 from assessment.projection import (_tilt_about_vertical, project_orthographic,
-                                    theta_values)
+                                   theta_values)
 from serve_pipeline.angles import vector_angle
 from serve_pipeline.rules import RULES
 
@@ -36,12 +36,13 @@ def two_segment_points(a_true: float, len1: float, len2: float,
 
     Placed in the image plane (z = 0), symmetric about the +y vertical (where
     the motion plane meets the image plane), so tilting by theta reuses the
-    projection convention. Returned as [first, vertex, last], the order the angle
-    readers expect.
+    projection convention. Returned as [first, vertex, last], the order the
+    angle readers expect.
 
-    chain=True is the knee/elbow turning angle: first sits back along the incoming
-    segment, so the turning angle at the vertex equals a_true. chain=False is the
-    shoulder V angle: both outer points emanate from the vertex.
+    chain=True is the knee/elbow turning angle: first sits back along the
+    incoming segment, so the turning angle at the vertex equals a_true.
+    chain=False is the shoulder V angle: both outer points emanate from the
+    vertex.
     """
     h = math.radians(a_true / 2.0)
     d1 = (-math.sin(h), math.cos(h), 0.0)
@@ -58,18 +59,20 @@ def two_segment_points(a_true: float, len1: float, len2: float,
 def trunk_points(a_true: float, length: float) -> List[Point3]:
     """Two landmark points for trunk inclination at true lean a_true.
 
-    Mid-hip at the origin, mid-shoulder one trunk length away, leaning by a_true
-    from the +y vertical (the fixed reference, no landmark, no noise). Returned
-    as [mid_hip, mid_shoulder].
+    Mid-hip at the origin, mid-shoulder one trunk length away, leaning by
+    a_true from the +y vertical (the fixed reference, no landmark, no noise).
+    Returned as [mid_hip, mid_shoulder].
 
-    Conservative simplification: each mid-point is one perturbed landmark. A real
-    mid-point averages two landmarks (quieter by ~1/sqrt(2)), so treating it as
-    one overstates the trunk spread, keeping the estimate on the safe side.
+    Conservative simplification: each mid-point is one perturbed landmark. A
+    real mid-point averages two landmarks (quieter by ~1/sqrt(2)), so treating
+    it as one overstates the trunk spread, keeping the estimate on the safe
+    side.
     """
     a = math.radians(a_true)
     mid_hip = (0.0, 0.0, 0.0)
     mid_shoulder = (length * math.sin(a), length * math.cos(a), 0.0)
     return [mid_hip, mid_shoulder]
+
 
 # Representative stature in pixels: a synthetic stand-in, absolute value
 # arbitrary and logged with every output. Only the ratios between the segment
@@ -90,12 +93,13 @@ SEGMENT_LENGTHS_PX = {
     "trunk_inclination": (_TRUNK * REP_STATURE_PX,),
     "front_knee_flexion": (_THIGH * REP_STATURE_PX, _SHANK * REP_STATURE_PX),
     "elbow_flexion": (_UPPER_ARM * REP_STATURE_PX, _FOREARM * REP_STATURE_PX),
-    "shoulder_elevation": (_UPPER_ARM * REP_STATURE_PX, _TRUNK * REP_STATURE_PX),
+    "shoulder_elevation": (_UPPER_ARM * REP_STATURE_PX,
+                           _TRUNK * REP_STATURE_PX),
 }
 
 # How each criterion's angle is formed, fixing how points are built and read:
-# "trunk" is one segment vs the vertical, "chain" a turning angle (knee, elbow),
-# "vertex" the interior V angle at the shoulder.
+# "trunk" is one segment vs the vertical, "chain" a turning angle (knee,
+# elbow), "vertex" the interior V angle at the shoulder.
 CRITERION_KIND = {
     "trunk_inclination": "trunk",
     "front_knee_flexion": "chain",
@@ -111,6 +115,7 @@ def landmark_points(criterion: str, a_true: float) -> List[Point3]:
         return trunk_points(a_true, lengths[0])
     return two_segment_points(a_true, lengths[0], lengths[1],
                               chain=(kind == "chain"))
+
 
 def project_points(points: List[Point3], theta: float) -> List[Point2]:
     """Reuses the projection E2 convention (tilt about the vertical, drop
@@ -157,6 +162,7 @@ def angular_spread(criterion: str, a_true: float, theta: float, sigma: float,
         for _ in range(config.mc_samples)])
     return Spread(mean_deg=float(draws.mean()),
                   sd_deg=float(draws.std(ddof=1)))
+
 
 @dataclass
 class NoisePropagation:

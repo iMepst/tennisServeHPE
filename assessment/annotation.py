@@ -53,8 +53,8 @@ class EventStats:
     (iqr_offset), undistorted by the heavy tail of a few mistimed slow-motion
     clips; mean_offset is secondary. Offsets are detected - true, in frames.
 
-    A not-locatable event carries no offset but still needs the manual check, so
-    it counts toward every move rate (reported as n_not_locatable).
+    A not-locatable event carries no offset but still needs the manual check,
+    so it counts toward every move rate (reported as n_not_locatable).
     move_rate_by_tolerance[t] is the share of clips the check must move at
     tolerance t (|offset| > t, or not locatable); several tolerances expose the
     usually-accurate, rarely-far-off structure.

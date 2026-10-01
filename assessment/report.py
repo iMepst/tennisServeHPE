@@ -40,7 +40,8 @@ def _write_csv(path: str, header: List[str],
     return path
 
 
-_PROJECTION_HEADER = ["criterion", "kind", "a_true", "theta", "projected_angle"]
+_PROJECTION_HEADER = ["criterion", "kind", "a_true", "theta",
+                      "projected_angle"]
 
 
 def projection_rows(curves: List[ProjectionCurve]) -> List[Dict[str, Any]]:
@@ -238,7 +239,7 @@ def _plot_spread_vs_theta(sweep: List[SigmaPoint], path: str) -> str:
     return path
 
 
-def _cell_edges(centers):
+def _cell_edges(centers: List[float]) -> np.ndarray:
     """Cell-boundary coordinates for centers, matching pcolormesh 'nearest':
     midpoints between centers, half a step beyond at each end."""
     c = np.asarray(centers, dtype=float)
@@ -249,7 +250,9 @@ def _cell_edges(centers):
                            [c[-1] + (c[-1] - mid[-1])]])
 
 
-def _draw_threshold_boundary(ax, thetas, sigmas, grid, level) -> None:
+def _draw_threshold_boundary(ax: Any, thetas: List[float],
+                             sigmas: List[float], grid: np.ndarray,
+                             level: float) -> None:
     """Outline where grid crosses level, along the pcolormesh cell edges.
 
     Draws only the interior edges separating a below-level cell from an
@@ -298,7 +301,8 @@ def _plot_decidability_map(sweep: List[SigmaPoint], path: str) -> str:
             ax.plot(crit_onset["theta"], crit_onset["sigma"], marker="o",
                     ms=9, markerfacecolor="white", markeredgecolor="black",
                     markeredgewidth=1.4, clip_on=True, zorder=5)
-            title += (f"  (unreliable from sigma = {crit_onset['sigma']:g} px, "
+            title += (f"  (unreliable from sigma = "
+                      f"{crit_onset['sigma']:g} px, "
                       f"theta = {crit_onset['theta']:g} deg)")
         else:
             title += "  (decidable across grid)"
@@ -389,7 +393,8 @@ def main() -> None:
                         help="output dir (default: <results>/assessment)")
     parser.add_argument("--no-figures", dest="make_figures",
                         action="store_false",
-                        help="write the CSV/JSON tables only, skip the figures")
+                        help="write the CSV/JSON tables only, "
+                             "skip the figures")
     args = parser.parse_args()
 
     config = PipelineConfig()

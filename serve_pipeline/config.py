@@ -28,7 +28,6 @@ class PipelineConfig:
     theta_range: Tuple[float, float] = (0.0, 45.0)
     theta_step: float = 5.0
 
-    sigma: float = 3.0
     sigma_sweep: Tuple[float, ...] = (2.0, 3.0, 4.0, 5.0, 6.0)
 
     mc_samples: int = 10000

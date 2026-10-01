@@ -1,15 +1,10 @@
-"""Decidability criterion 3c.
+"""Decidability criterion.
 
-The question Q3: under which conditions does a criterion stay reliable
-enough? Answered by holding the induced angular spread (the SD that
-projection and landmark noise put into a rule's input) against the rule's
-own band half-width.
-
-Band half-width is one reference SD, so the comparison needs no external
-scale: it asks whether the noise-driven scatter is smaller than the
-spread the band is drawn from. Decidable where the induced spread stays
-below the half-width across the expected viewpoint and noise range;
-unreliable where it reaches it.
+Holds the induced angular spread (the SD that projection and landmark noise
+put into a rule's input) against the rule's band half-width, one reference
+SD. A cell of the (theta, sigma) sweep is decidable where the spread stays
+below the half-width and unreliable where it reaches it; a criterion counts
+as decidable when every cell is.
 """
 
 from dataclasses import dataclass
@@ -17,15 +12,7 @@ from typing import List, Optional, Tuple
 
 from assessment.propagation import noise_propagation
 from serve_pipeline.config import PipelineConfig
-from serve_pipeline.rules import RULES, Rule
-
-# The band half-width is factor * SD with factor exactly 1, the same
-# minimal non-arbitrary choice the rule bands themselves use.
-THRESHOLD_FACTOR = 1.0
-
-
-def band_half_width(rule: Rule) -> float:
-    return THRESHOLD_FACTOR * rule.sd
+from serve_pipeline.rules import RULES
 
 
 def assess_series(induced_sd: List[float], thetas: List[float],
@@ -61,14 +48,13 @@ class Decidability:
 
 
 def decidability(config: PipelineConfig,
-                 sigma: Optional[float] = None) -> List[Decidability]:
-    if sigma is None:
-        sigma = config.sigma
+                 sigma: float) -> List[Decidability]:
     props = {p.criterion: p for p in noise_propagation(config, sigma)}
     results: List[Decidability] = []
     for rule in RULES:
         prop = props[rule.id]
-        half = band_half_width(rule)
+        # Half-width = one reference SD, the same factor of one as the bands.
+        half = rule.sd
         ratio, decidable, breakdown, verdict = assess_series(
             prop.sd_deg, prop.thetas, half)
         results.append(Decidability(

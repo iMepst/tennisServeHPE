@@ -4,31 +4,78 @@ Written to results/assessment/:
 
 - projection_curves.csv   E2:    per criterion, theta -> projected angle
 - noise_propagation.csv   E1+E2: per criterion, (theta, sigma) -> induced SD
-- decidability.csv        3b/3c: per criterion, (theta, sigma) -> SD vs band
-- event_error.json        E3:    frame-move rate + robust offset distribution
+- decidability.csv        3a:    per criterion, (theta, sigma) -> SD vs band
+- event_error.json        E3:    tolerance shares, large errors, offsets
 - run_meta.json                  every parameter, so a run reproduces exactly
 
     python -m assessment.report [--annotations DIR] [--results-root DIR]
-                                [--out DIR]
+                                [--out DIR] [--no-figures]
 """
 
 import argparse
 import csv
 import os
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 import numpy as np
 
-from assessment.annotation import EventError, EventStats
+from assessment.annotation import (EventError, EventStats,
+                                   estimate_event_error,
+                                   read_event_annotations)
+from assessment.decidability import Decidability, decidability
 from assessment.projection import (ProjectionCurve, projection_curves,
                                    theta_values)
-from assessment.propagation import REP_STATURE_PX
-from assessment.run_measured import SigmaPoint, measured_assessment
+from assessment.propagation import (REP_STATURE_PX, NoisePropagation,
+                                    noise_propagation)
 from serve_pipeline.config import PipelineConfig
 from serve_pipeline.persistence import write_metadata
 
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt  # noqa: E402
+
 DEFAULT_SUBDIR = "assessment"
+FIGURE_SUBDIR = "figures"
+
+_DEFAULT_ANNOTATIONS = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    "data", "annotations")
+
+
+@dataclass
+class SigmaPoint:
+    sigma: float
+    propagation: List[NoisePropagation]
+    decidability: List[Decidability]
+
+
+@dataclass
+class MeasuredAssessment:
+    event_error: Optional[EventError]
+    sweep: List[SigmaPoint]
+
+
+def measured_assessment(config: PipelineConfig, annotations_dir: str,
+                        results_root: Optional[str] = None
+                        ) -> MeasuredAssessment:
+    """E3 from the manual frame check, then E1/E2 over the sigma sweep."""
+    if results_root is None:
+        results_root = config.results_root
+
+    events_path = os.path.join(annotations_dir, "events.csv")
+    event_error = (estimate_event_error(
+        read_event_annotations(events_path), results_root)
+        if os.path.isfile(events_path) else None)
+
+    sweep = [
+        SigmaPoint(sigma=s,
+                   propagation=noise_propagation(config, s),
+                   decidability=decidability(config, s))
+        for s in config.sigma_sweep]
+
+    return MeasuredAssessment(event_error=event_error, sweep=sweep)
 
 
 def _write_csv(path: str, header: List[str],
@@ -121,37 +168,24 @@ def _event_stats_dict(e: EventStats) -> Dict[str, Any]:
         "tolerances": list(e.tolerances),
         "n_moved_by_tolerance": {str(t): e.n_moved_by_tolerance[t]
                                  for t in e.tolerances},
-        "move_rate_by_tolerance": {str(t): e.move_rate_by_tolerance[t]
-                                   for t in e.tolerances},
+        "share_by_tolerance": {str(t): e.share_by_tolerance[t]
+                               for t in e.tolerances},
         "median_offset": e.median_offset,
         "iqr_offset": e.iqr_offset,
         "max_abs_offset": e.max_abs_offset,
         "large_offset_frames": e.large_offset_frames,
         "n_large_failures": e.n_large_failures,
+        "share_large_failures": e.share_large_failures,
         "mean_offset": e.mean_offset,
     }
 
 
-def event_error_dict(event_error: Optional[EventError],
-                     events_csv: str) -> Dict[str, Any]:
-    """``available`` is the flag the Results chapter keys on: False means the
-    event error was not measured (no events.csv), never that it was zero.
-    """
+def event_error_dict(event_error: Optional[EventError]) -> Dict[str, Any]:
     if event_error is None:
-        return {"available": False, "placeholder": True,
-                "note": f"no event annotation at {events_csv}; "
-                        "E3 not measured"}
+        return {"available": False}
     return {"available": True, "n_clips": event_error.n_clips,
             "trophy": _event_stats_dict(event_error.trophy),
             "impact": _event_stats_dict(event_error.impact)}
-
-
-_E4_NOTE = (
-    "E4 definitional mismatch is not quantified by design: the gap between "
-    "surface landmarks and the joint centres behind the reference values "
-    "needs joint-centre ground truth this study does not have. It is left as "
-    "a documented, unquantified offset (worst on trunk inclination), never "
-    "simulated and never assigned a number.")
 
 
 def run_meta(config: PipelineConfig, outputs: Dict[str, str],
@@ -160,24 +194,17 @@ def run_meta(config: PipelineConfig, outputs: Dict[str, str],
         "theta_range": list(config.theta_range),
         "theta_step": config.theta_step,
         "thetas": theta_values(config),
-        "sigma": config.sigma,
         "sigma_sweep": list(config.sigma_sweep),
         "mc_samples": config.mc_samples,
         "seed": config.seed,
         "reference_stature_px": REP_STATURE_PX,
         "event_tolerances_frames": list(config.event_tolerances_frames),
         "event_large_offset_frames": config.event_large_offset_frames,
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "created_utc": datetime.now(timezone.utc).isoformat(),
         "outputs": {name: os.path.relpath(path, out_dir)
                     for name, path in outputs.items()},
-        "notes": {"e4_definitional_mismatch": _E4_NOTE},
     }
 
-
-# Matplotlib is imported lazily (Agg, headless) so a numbers-only run needs
-# no display.
-
-FIGURE_SUBDIR = "figures"
 
 _CRITERION_LABEL = {
     "trunk_inclination": "Trunk inclination",
@@ -188,17 +215,13 @@ _CRITERION_LABEL = {
 
 # Colour-scale bounds for the decidability heatmaps, shared across panels so
 # they stay comparable. The upper limit sits just above the largest ratio the
-# grid reaches (~1.014), so the full colour range spans the values that occur
+# grid reaches, so the full colour range spans the values that occur
 # and the contrast around the ratio = 1 boundary is visible.
 _DECIDABILITY_VMIN = 0.0
 _DECIDABILITY_VMAX = 1.1
 
 
 def _plot_projection_curves(curves: List[ProjectionCurve], path: str) -> str:
-    import matplotlib
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
-
     fig, ax = plt.subplots(figsize=(7, 5))
     for c in curves:
         ax.plot(c.thetas, c.projected, marker="o", ms=3,
@@ -215,10 +238,6 @@ def _plot_projection_curves(curves: List[ProjectionCurve], path: str) -> str:
 
 
 def _plot_spread_vs_theta(sweep: List[SigmaPoint], path: str) -> str:
-    import matplotlib
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
-
     criteria = [d.criterion for d in sweep[0].decidability]
     fig, axes = plt.subplots(2, 2, figsize=(11, 8), sharex=True)
     for ax, criterion in zip(axes.flat, criteria):
@@ -243,8 +262,6 @@ def _cell_edges(centers: List[float]) -> np.ndarray:
     """Cell-boundary coordinates for centers, matching pcolormesh 'nearest':
     midpoints between centers, half a step beyond at each end."""
     c = np.asarray(centers, dtype=float)
-    if c.size == 1:
-        return np.array([c[0] - 0.5, c[0] + 0.5])
     mid = (c[:-1] + c[1:]) / 2.0
     return np.concatenate([[c[0] - (mid[0] - c[0])], mid,
                            [c[-1] + (c[-1] - mid[-1])]])
@@ -276,10 +293,6 @@ def _draw_threshold_boundary(ax: Any, thetas: List[float],
 
 
 def _plot_decidability_map(sweep: List[SigmaPoint], path: str) -> str:
-    import matplotlib
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
-
     onset = _unreliable_onset(sweep)
     sigmas = [p.sigma for p in sweep]
     thetas = sweep[0].decidability[0].thetas
@@ -342,7 +355,6 @@ def build_assessment_report(config: PipelineConfig, annotations_dir: str,
 
     curves = projection_curves(config)
     measured = measured_assessment(config, annotations_dir, results_root)
-    events_csv = os.path.join(annotations_dir, "events.csv")
 
     outputs: Dict[str, str] = {
         "projection_curves": _write_csv(
@@ -357,8 +369,7 @@ def build_assessment_report(config: PipelineConfig, annotations_dir: str,
     }
 
     event_path = os.path.join(out_dir, "event_error.json")
-    write_metadata(event_path, event_error_dict(
-        measured.event_error, events_csv))
+    write_metadata(event_path, event_error_dict(measured.event_error))
     outputs["event_error"] = event_path
 
     if make_figures:
@@ -371,11 +382,6 @@ def build_assessment_report(config: PipelineConfig, annotations_dir: str,
     outputs["run_meta"] = meta_path
 
     return {"out_dir": out_dir, "outputs": outputs}
-
-
-_DEFAULT_ANNOTATIONS = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-    "data", "annotations")
 
 
 def main() -> None:

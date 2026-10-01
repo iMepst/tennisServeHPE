@@ -1,8 +1,8 @@
 """Projection error E2: how a monocular view distorts the true angle.
 
-Camera level, projection orthographic (good when the player is distant relative
-to body scale). No recordings: the true angle is prescribed by construction and
-its projection computed.
+Level camera turned about the vertical, scaled orthographic projection. No
+recordings: the true angle is prescribed by construction and its projection
+computed.
 
 theta is the angle between the motion plane (where the joint moves) and the
 image plane. It is not a single known value (partly camera placement, partly
@@ -18,9 +18,19 @@ from serve_pipeline.angles import vector_angle
 from serve_pipeline.config import PipelineConfig
 from serve_pipeline.rules import RULES
 
+# How each criterion's angle is formed, fixing how points are built and read:
+# "trunk" is one segment vs the vertical, "chain" a turning angle (knee,
+# elbow), "vertex" the interior V angle at the shoulder.
+CRITERION_KIND = {
+    "trunk_inclination": "trunk",
+    "front_knee_flexion": "chain",
+    "elbow_flexion": "chain",
+    "shoulder_elevation": "vertex",
+}
 
-def _tilt_about_vertical(v: Tuple[float, float, float],
-                         theta: float) -> Tuple[float, float, float]:
+
+def tilt_about_vertical(v: Tuple[float, float, float],
+                        theta: float) -> Tuple[float, float, float]:
     """Rotate a 3D direction by theta (deg) about the vertical y axis.
 
     The vertical is where the motion plane meets the image plane, so rotating
@@ -50,8 +60,8 @@ def numeric_projected_angle(a_true: float, theta: float) -> float:
     h = math.radians(a_true / 2.0)
     arm_left = (-math.sin(h), math.cos(h), 0.0)
     arm_right = (math.sin(h), math.cos(h), 0.0)
-    left = project_orthographic(_tilt_about_vertical(arm_left, theta))
-    right = project_orthographic(_tilt_about_vertical(arm_right, theta))
+    left = project_orthographic(tilt_about_vertical(arm_left, theta))
+    right = project_orthographic(tilt_about_vertical(arm_right, theta))
     return vector_angle(left, right)
 
 
@@ -68,9 +78,9 @@ def trunk_projected_angle(a_true: float, theta: float) -> float:
 
 
 def project_orthographic(v: Tuple[float, float, float]) -> Tuple[float, float]:
-    """Ignoring perspective makes the reported error a lower bound: a real
-    lens adds foreshortening, more so the closer or more off-centre the
-    player. The far-player assumption keeps the gap small.
+    """Drop depth. A real lens adds perspective, which shifts each landmark
+    by an amount that depends on its depth and can move an angle either way,
+    so the projection error reported here is an approximation.
     """
     return v[0], v[1]
 
@@ -102,7 +112,7 @@ def projection_curves(config: PipelineConfig) -> List[ProjectionCurve]:
     thetas = theta_values(config)
     curves: List[ProjectionCurve] = []
     for rule in RULES:
-        closed = rule.id == "trunk_inclination"
+        closed = CRITERION_KIND[rule.id] == "trunk"
         model = trunk_projected_angle if closed else numeric_projected_angle
         projected = [model(rule.mean, th) for th in thetas]
         curves.append(ProjectionCurve(

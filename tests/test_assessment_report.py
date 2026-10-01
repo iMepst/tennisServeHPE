@@ -6,9 +6,8 @@ from assessment.annotation import EventError, _event_stats
 from assessment.decidability import Decidability
 from assessment.report import (_DECIDABILITY_HEADER, _NOISE_HEADER,
                                _PROJECTION_HEADER, build_assessment_report,
-                               decidability_rows, event_error_dict,
-                               _unreliable_onset)
-from assessment.run_measured import SigmaPoint
+                               SigmaPoint, decidability_rows,
+                               event_error_dict, _unreliable_onset)
 from serve_pipeline.config import PipelineConfig
 from serve_pipeline.rules import RULES
 
@@ -114,7 +113,7 @@ def test_build_report_writes_figures(tmp_path):
                  "decidability_map.png"):
         assert os.path.getsize(os.path.join(fig_dir, name)) > 0
     event_error = _read_json(os.path.join(out_dir, "event_error.json"))
-    assert event_error["placeholder"] is True
+    assert event_error == {"available": False}
 
 
 def test_reproducible_numbers_across_runs(tmp_path):
@@ -132,17 +131,14 @@ def test_reproducible_numbers_across_runs(tmp_path):
             assert fa.read() == fb.read()
 
 
-def test_event_error_placeholder_when_missing(tmp_path):
+def test_event_error_unavailable_when_missing(tmp_path):
     config = _fast_config()
     out_dir = str(tmp_path / "assessment")
     build_assessment_report(config, annotations_dir=str(tmp_path / "none"),
                             results_root=str(tmp_path / "results"),
                             out_dir=out_dir, make_figures=False)
     event_error = _read_json(os.path.join(out_dir, "event_error.json"))
-    assert event_error["available"] is False
-    assert event_error["placeholder"] is True
-    assert "note" in event_error
-    assert "trophy" not in event_error and "impact" not in event_error
+    assert event_error == {"available": False}
 
 
 def test_run_meta_logs_every_parameter(tmp_path):
@@ -159,11 +155,10 @@ def test_run_meta_logs_every_parameter(tmp_path):
     assert meta["event_tolerances_frames"] == list(
         config.event_tolerances_frames)
     assert set(meta) == {
-        "theta_range", "theta_step", "thetas", "sigma", "sigma_sweep",
+        "theta_range", "theta_step", "thetas", "sigma_sweep",
         "mc_samples", "seed", "reference_stature_px",
-        "event_tolerances_frames", "event_large_offset_frames", "timestamp",
-        "outputs", "notes"}
-    assert "e4_definitional_mismatch" in meta["notes"]
+        "event_tolerances_frames", "event_large_offset_frames",
+        "created_utc", "outputs"}
 
 
 def test_event_error_dict_serialises_robust_stats():
@@ -172,17 +167,17 @@ def test_event_error_dict_serialises_robust_stats():
     trophy = _event_stats("trophy", [0, 0, 0, 0],
                           tolerances=(1, 3), large_offset_frames=30)
     record = event_error_dict(
-        EventError(n_clips=4, trophy=trophy, impact=impact),
-        events_csv="unused")
+        EventError(n_clips=4, trophy=trophy, impact=impact))
     assert set(record) == {"available", "n_clips", "trophy", "impact"}
     assert record["available"] is True
     assert set(record["impact"]) == {
         "n_clips", "n_locatable", "n_not_locatable", "tolerances",
-        "n_moved_by_tolerance", "move_rate_by_tolerance", "median_offset",
+        "n_moved_by_tolerance", "share_by_tolerance", "median_offset",
         "iqr_offset", "max_abs_offset", "large_offset_frames",
-        "n_large_failures", "mean_offset"}
+        "n_large_failures", "share_large_failures", "mean_offset"}
     assert record["impact"]["n_large_failures"] == 1
-    assert set(record["impact"]["move_rate_by_tolerance"]) == {"1", "3"}
+    assert record["impact"]["share_large_failures"] == 0.25
+    assert set(record["impact"]["share_by_tolerance"]) == {"1", "3"}
     assert record["impact"]["median_offset"] == 0.5
 
 

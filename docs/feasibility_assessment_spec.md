@@ -19,7 +19,7 @@ Total measurement error (reported angle minus true angle) is structured into fou
 |---|--------------|------------|--------------------------|--------------|-------------------------|
 | E1 | **Pose estimation error** | Estimated landmark minus true image position | Not measurable: the clips carry no hand-annotated landmarks and the model card reports only a torso-normalised detection rate, no pixel-level error. Sigma is therefore swept over a plausible range | Swept, not measured | Induced angular spread over sigma band |
 | E2 | **Projection error** | True spatial angle minus monocular projected angle | Computed from the projection geometry alone, without video dependencies | Yes | Projected-angle curves over theta |
-| E3 | **Event error** | Detected frame minus true event instant, including the offset built into the pelvis and wrist proxies | Measured against manual key-frame video annotations | Yes | Offset distribution and move rates |
+| E3 | **Event error** | Detected frame minus true event instant, including the offset built into the pelvis and wrist proxies | Measured against manual key-frame video annotations | Yes | Tolerance shares, large errors and offset distribution |
 | E4 | **Definitional mismatch** | Estimator keypoint definition vs. anatomical joint centres behind the reference values | Documented qualitatively under limitations; would need 3D motion capture of the same serves. Trunk inclination carries a second offset (read against the vertical, reference taken against the pelvis) | No | Qualitative discussion |
 
 E1-E3 enter the analysis numerically. E4 is treated as a documented, unquantified offset and is not simulated.
@@ -58,7 +58,7 @@ Because the pipeline outputs qualitative indicators rather than continuous angle
 ### 3b. Event-detection stability (E3)
 - A single observer steps frame by frame through each clip's pose overlay and marks one trophy and one impact frame, without seeing the detected frames. Frames are counted with the pipeline's frame index.
 - Manual definitions are the racket-based ones the landmark proxies approximate: trophy at the racket's first vertical peak over the loaded legs, ball impact at visible racket-ball contact.
-- The event error is the offset between detected and manual frame, reported as the share of locatable clips whose |offset| exceeds 1, 3 or 5 frames and the share of large errors of 30 frames or more. `event_error.json` additionally carries median, IQR and max offset and a move rate that also counts not-locatable events.
+- The event error is the offset between detected and manual frame, reported as the share of locatable clips whose |offset| exceeds 1, 3 or 5 frames and the share of large errors of 30 frames or more. `event_error.json` carries these counts and shares plus the median, IQR, mean and maximum offset.
 - Detected frames are not corrected; the angles are read at them, so the event error passes into the flags.
 
 ---
@@ -71,7 +71,7 @@ Outputs are structured as machine-readable tables and reproducible figures:
 |----------|--------------|---------|
 | `projection_curves.csv` | E2 | Projected angle as a function of theta per criterion |
 | `noise_propagation.csv` | E1+E2 | Induced angular standard deviation over theta and sigma sweeps |
-| `event_error.json` | E3 | Frame-move rates and offset distribution statistics from manual annotations |
+| `event_error.json` | E3 | Tolerance shares, large errors and offset distribution from manual annotations |
 | `decidability.csv` | 3a | Induced SD vs. band half-width ratio, decidable status, and onset points |
 | `run_meta.json` | Metadata | Complete configuration parameters and provenance for reproduction |
 | `figures/` | All | Rendered projection curves, spread vs. theta plots, and decidability maps |
@@ -86,8 +86,7 @@ assessment/
   projection.py    # E2: Analytic and numerical projection modeling over theta
   propagation.py   # E1+E2: Monte Carlo landmark noise propagation over (theta, sigma)
   decidability.py  # 3a: Decidability ratio evaluation and breakdown localization
-  run_measured.py  # Orchestrator linking empirical E3 with the synthetic core
-  report.py        # Artifact and figure generation under results/assessment/
+  report.py        # Orchestrator: E3 plus the synthetic sweep, artifacts and figures under results/assessment/
 ```
 
 Shared configuration parameters (`theta_range`, `sigma_sweep`, `mc_samples`, `seed`) are loaded centrally from `PipelineConfig`.

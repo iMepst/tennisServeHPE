@@ -8,49 +8,14 @@ from assessment.annotation import (
     EventAnnotation, estimate_event_error, read_event_annotations,
     _event_stats)
 from serve_pipeline.config import PipelineConfig
-from serve_pipeline.interpolation import ProcessedFrame, ProcessedSample
-from serve_pipeline.landmarks import NAME_TO_ID, NUM_LANDMARKS
-from serve_pipeline.persistence import write_filtered_csv, write_metadata
-
-_W, _H = 1000, 1000
-
-
-_CLIP_PARAMS = {
-    "serving_arm": "right", "front_leg": "left", "camera_plane": "frontal",
-    "view_direction": "back", "fps": 25.0,
-    "frame_width": _W, "frame_height": _H,
-}
-_WRIST = NAME_TO_ID["right_wrist"]
-_HIPS = (NAME_TO_ID["left_hip"], NAME_TO_ID["right_hip"])
-
-
-def _event_frame(i, wrist_y, hip_y, wrist_reliable=True):
-    samples = []
-    for lm in range(NUM_LANDMARKS):
-        if lm == _WRIST and not wrist_reliable:
-            samples.append(ProcessedSample(
-                lm, valid=False, mask_reason="low_visibility",
-                interpolated=False, reliable=False, filtered=False,
-                x=None, y=None, visibility=0.1))
-            continue
-        y = wrist_y if lm == _WRIST else hip_y if lm in _HIPS else 0.5
-        samples.append(ProcessedSample(
-            lm, valid=True, mask_reason="ok", interpolated=False,
-            reliable=True, filtered=True, x=0.5, y=y, visibility=0.9))
-    return ProcessedFrame(frame_index=i, time_s=i / 25.0, samples=samples)
+from serve_pipeline.persistence import write_metadata
 
 
 def _make_event_clip(results_root, clip, locatable=True):
-    hip_ys = [0.5, 0.6, 0.9, 0.6, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5]
-    wrist_ys = [0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.1, 0.5, 0.5]
-    frames = [_event_frame(i, wrist_ys[i], hip_ys[i],
-                           wrist_reliable=locatable)
-              for i in range(len(hip_ys))]
-    os.makedirs(os.path.join(results_root, clip, "stage2"))
-    write_filtered_csv(
-        os.path.join(results_root, clip, "stage2", "filtered.csv"), frames)
+    os.makedirs(os.path.join(results_root, clip))
     write_metadata(os.path.join(results_root, clip, "result.json"),
-                   {"clip_params": _CLIP_PARAMS})
+                   {"key_events": {"trophy_frame": 2 if locatable else None,
+                                   "impact_frame": 7 if locatable else None}})
 
 
 def test_read_event_annotations_rejects_bad_schema(tmp_path):
@@ -69,8 +34,8 @@ def test_event_stats_rate_and_distribution():
     assert err.n_not_locatable == 1
     assert err.n_moved_by_tolerance[1] == 2
     assert err.n_moved_by_tolerance[3] == 0
-    assert err.move_rate_by_tolerance[1] == pytest.approx(3 / 4)
-    assert err.move_rate_by_tolerance[3] == pytest.approx(1 / 4)
+    assert err.share_by_tolerance[1] == pytest.approx(2 / 3)
+    assert err.share_by_tolerance[3] == 0.0
     assert err.max_abs_offset == 3.0
     assert err.median_offset == 0.0
     assert err.n_large_failures == 0
@@ -98,7 +63,7 @@ def test_estimate_event_error_offsets(tmp_path):
     err = estimate_event_error(annotations, results_root, tolerances=(1,))
 
     assert err.trophy.n_moved_by_tolerance[1] == 0
-    assert err.trophy.move_rate_by_tolerance[1] == 0.0
+    assert err.trophy.share_by_tolerance[1] == 0.0
     assert err.impact.n_moved_by_tolerance[1] == 1
     assert err.impact.max_abs_offset == 4.0
     assert err.impact.n_not_locatable == 0
@@ -113,12 +78,12 @@ def test_estimate_event_error_handles_not_locatable(tmp_path):
 
     assert err.trophy.n_not_locatable == 1
     assert err.impact.n_not_locatable == 1
-    assert err.impact.move_rate_by_tolerance[1] == 1.0
+    assert math.isnan(err.impact.share_by_tolerance[1])
     assert math.isnan(err.impact.mean_offset)
 
 
 def test_measured_assessment_runs_event_error_and_sigma_sweep(tmp_path):
-    from assessment.run_measured import measured_assessment
+    from assessment.report import measured_assessment
     from serve_pipeline.rules import RULES
 
     config = PipelineConfig()
@@ -136,7 +101,6 @@ def test_measured_assessment_runs_event_error_and_sigma_sweep(tmp_path):
 
     assert measured.event_error is not None
     assert measured.event_error.impact.n_locatable == 1
-    assert measured.sigma_sweep == list(config.sigma_sweep)
     assert [p.sigma for p in measured.sweep] == list(config.sigma_sweep)
     for point in measured.sweep:
         assert len(point.decidability) == len(RULES)
@@ -144,7 +108,7 @@ def test_measured_assessment_runs_event_error_and_sigma_sweep(tmp_path):
 
 
 def test_measured_assessment_without_event_annotation(tmp_path):
-    from assessment.run_measured import measured_assessment
+    from assessment.report import measured_assessment
 
     config = PipelineConfig()
     measured = measured_assessment(config, str(tmp_path / "missing"))
@@ -157,7 +121,7 @@ def test_swept_sigma_changes_spread():
     from assessment.propagation import noise_propagation
 
     config = PipelineConfig()
-    base = noise_propagation(config, sigma=config.sigma)
-    doubled = noise_propagation(config, sigma=config.sigma * 2.0)
+    base = noise_propagation(config, sigma=3.0)
+    doubled = noise_propagation(config, sigma=6.0)
     for a, b in zip(base, doubled):
         assert b.sd_deg != a.sd_deg

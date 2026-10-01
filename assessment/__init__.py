@@ -4,19 +4,18 @@ Mostly synthetic, recording-free analyses of the measurement chain. The error
 budget has four sources:
 
 - E1 pose estimation  -> propagation.py (landmark noise, Monte Carlo). sigma is
-  not measured; it is taken from the estimator's reported accuracy and swept
-  over config.sigma_sweep, so the induced spread and the decidability verdict
-  read as a function of noise level.
+  not measured: the clips carry no hand-annotated landmarks and the model card
+  reports no pixel-level error, so it is swept over config.sigma_sweep.
 - E2 projection       -> projection.py (monocular foreshortening)
 - E3 event error      -> annotation.py (manual frame check)
 - E4 definitional     -> NOT simulated
 
-E4 is the gap between surface landmarks and the reference joint centres. Left
-as a documented, unquantified offset (worst on trunk inclination): quantifying
-it would need joint-centre ground truth the work lacks.
+E4 is the gap between the estimator's keypoint definition and the anatomical
+joint centres behind the reference values. Quantifying it would need a
+three-dimensional joint-centre reference, so it stays an unquantified offset.
 
-Q3 is answered by the decidability criterion (decidability.py) alone.
+Q3 rests on the decidability criterion (decidability.py) and on the flags the
+pipeline returns on the corpus (serve_pipeline/report.py).
 
-Every analysis takes its parameters from the shared config and returns them in
-its result, so a run is reproducible from its output alone.
+run_meta.json records every parameter, so a run is reproducible.
 """

@@ -2,10 +2,10 @@ import math
 
 import pytest
 
-from assessment.projection import (_tilt_about_vertical,
-                                   numeric_projected_angle,
+from assessment.projection import (numeric_projected_angle,
                                    project_orthographic, projection_curves,
-                                   theta_values, trunk_projected_angle)
+                                   theta_values, tilt_about_vertical,
+                                   trunk_projected_angle)
 from serve_pipeline.angles import vector_angle
 from serve_pipeline.config import PipelineConfig
 
@@ -15,7 +15,7 @@ from serve_pipeline.config import PipelineConfig
 def test_trunk_closed_form_matches_direct_numeric(a_true, theta):
     a = math.radians(a_true)
     axis = (math.sin(a), math.cos(a), 0.0)
-    px, py = project_orthographic(_tilt_about_vertical(axis, theta))
+    px, py = project_orthographic(tilt_about_vertical(axis, theta))
     assert trunk_projected_angle(a_true, theta) == pytest.approx(
         vector_angle((px, py), (0.0, 1.0)), abs=1e-9)
 

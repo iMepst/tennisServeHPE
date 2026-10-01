@@ -8,22 +8,22 @@ Per criterion: a fixed pixel error subtends a larger angle across a shorter
 segment, so the short arm segments (elbow, shoulder) react more strongly than
 the longer trunk and leg segments. That is why segment lengths enter here.
 
-Simplification: the noise is isotropic and independent between frames, whereas
-real landmark error is temporally correlated and larger in the fast, blurred
-serve phases; the figures are indicative, not exact.
+Simplification: the noise is isotropic and independent between landmarks, as
+no measured error covariance exists for the estimator on serves; the real
+error is likely also larger in the fast serve phases. The figures are
+indicative, not exact.
 """
 
 import math
 from dataclasses import dataclass
-from typing import List, Optional, Tuple
+from typing import List, Tuple
 
 import numpy as np
 
-from serve_pipeline.config import PipelineConfig
-
-from assessment.projection import (_tilt_about_vertical, project_orthographic,
-                                   theta_values)
+from assessment.projection import (CRITERION_KIND, project_orthographic,
+                                   theta_values, tilt_about_vertical)
 from serve_pipeline.angles import vector_angle
+from serve_pipeline.config import PipelineConfig
 from serve_pipeline.rules import RULES
 
 Point3 = Tuple[float, float, float]
@@ -97,16 +97,6 @@ SEGMENT_LENGTHS_PX = {
                            _TRUNK * REP_STATURE_PX),
 }
 
-# How each criterion's angle is formed, fixing how points are built and read:
-# "trunk" is one segment vs the vertical, "chain" a turning angle (knee,
-# elbow), "vertex" the interior V angle at the shoulder.
-CRITERION_KIND = {
-    "trunk_inclination": "trunk",
-    "front_knee_flexion": "chain",
-    "elbow_flexion": "chain",
-    "shoulder_elevation": "vertex",
-}
-
 
 def landmark_points(criterion: str, a_true: float) -> List[Point3]:
     kind = CRITERION_KIND[criterion]
@@ -122,7 +112,7 @@ def project_points(points: List[Point3], theta: float) -> List[Point2]:
     depth), so the landmark noise is layered on exactly the image the
     projection produces.
     """
-    return [project_orthographic(_tilt_about_vertical(p, theta))
+    return [project_orthographic(tilt_about_vertical(p, theta))
             for p in points]
 
 
@@ -147,21 +137,15 @@ def read_angle(criterion: str, points: List[Point2]) -> float:
     return vector_angle((fx - vx, fy - vy), (lx - vx, ly - vy))
 
 
-@dataclass
-class Spread:
-    mean_deg: float
-    sd_deg: float
-
-
 def angular_spread(criterion: str, a_true: float, theta: float, sigma: float,
-                   config: PipelineConfig) -> Spread:
+                   config: PipelineConfig) -> float:
+    """SD in degrees of the angle read from noisy landmarks."""
     rng = np.random.default_rng(config.seed)
     projected = project_points(landmark_points(criterion, a_true), theta)
     draws = np.array([
         read_angle(criterion, add_noise(projected, sigma, rng))
         for _ in range(config.mc_samples)])
-    return Spread(mean_deg=float(draws.mean()),
-                  sd_deg=float(draws.std(ddof=1)))
+    return float(draws.std(ddof=1))
 
 
 @dataclass
@@ -181,13 +165,11 @@ class NoisePropagation:
 
 
 def noise_propagation(config: PipelineConfig,
-                      sigma: Optional[float] = None) -> List[NoisePropagation]:
-    if sigma is None:
-        sigma = config.sigma
+                      sigma: float) -> List[NoisePropagation]:
     thetas = theta_values(config)
     results: List[NoisePropagation] = []
     for rule in RULES:
-        sd = [angular_spread(rule.id, rule.mean, th, sigma, config).sd_deg
+        sd = [angular_spread(rule.id, rule.mean, th, sigma, config)
               for th in thetas]
         results.append(NoisePropagation(
             criterion=rule.id, a_true=rule.mean, sigma=sigma,

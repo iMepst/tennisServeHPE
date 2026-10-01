@@ -1,6 +1,6 @@
-from typing import Any, List, Optional, Sequence, Tuple
+from typing import Any, List, Optional, Sequence
 
-from .gating import GatedFrame, MASK_UNDETECTED
+from .gating import GatedFrame, MASK_LOW_VISIBILITY, MASK_UNDETECTED, runs
 from .interpolation import ProcessedFrame
 from .landmarks import NAME_TO_ID
 
@@ -27,28 +27,12 @@ def _typical_dt(times: List[float]) -> float:
 
 def _shade_invalid(ax: Any, gated: List[GatedFrame], lm_id: int,
                    times: List[float], pad: float) -> None:
-    start = None
-    reason = ""
-    for i, g in enumerate(gated):
-        s = g.samples[lm_id]
-        if not s.valid:
-            if start is None:
-                start, reason = i, s.mask_reason
-            elif s.mask_reason != reason:
-                _span(ax, times, start, i - 1, reason, pad)
-                start, reason = i, s.mask_reason
-        elif start is not None:
-            _span(ax, times, start, i - 1, reason, pad)
-            start = None
-    if start is not None:
-        _span(ax, times, start, len(gated) - 1, reason, pad)
-
-
-def _span(ax: Any, times: List[float], start: int, end: int,
-          reason: str, pad: float) -> None:
-    color = _UNDETECTED_COLOR if reason == MASK_UNDETECTED else _LOW_VIS_COLOR
-    ax.axvspan(times[start] - pad, times[end] + pad, color=color, alpha=0.3,
-               linewidth=0)
+    for reason, color in ((MASK_UNDETECTED, _UNDETECTED_COLOR),
+                          (MASK_LOW_VISIBILITY, _LOW_VIS_COLOR)):
+        flags = [g.samples[lm_id].mask_reason == reason for g in gated]
+        for start, end in runs(flags):
+            ax.axvspan(times[start] - pad, times[end] + pad, color=color,
+                       alpha=0.3, linewidth=0)
 
 
 def plot_raw_vs_gated(gated: List[GatedFrame], landmark_names: Sequence[str],
@@ -96,17 +80,9 @@ def _coord(sample: Any, coord: str) -> float:
 
 def _shade_unreliable(ax: Any, frames: List[ProcessedFrame], lm_id: int,
                       times: List[float], pad: float) -> None:
-    start = None
-    for i, f in enumerate(frames):
-        if not f.samples[lm_id].reliable:
-            if start is None:
-                start = i
-        elif start is not None:
-            ax.axvspan(times[start] - pad, times[i - 1] + pad,
-                       color=_UNRELIABLE_COLOR, alpha=0.5, linewidth=0)
-            start = None
-    if start is not None:
-        ax.axvspan(times[start] - pad, times[-1] + pad,
+    unreliable = [not f.samples[lm_id].reliable for f in frames]
+    for start, end in runs(unreliable):
+        ax.axvspan(times[start] - pad, times[end] + pad,
                    color=_UNRELIABLE_COLOR, alpha=0.5, linewidth=0)
 
 
@@ -114,8 +90,7 @@ def plot_raw_vs_filtered(
         pre_filter: List[ProcessedFrame],
         filtered: List[ProcessedFrame], label: str,
         landmark_names: Sequence[str], coord: str, path: str,
-        title: Optional[str] = None,
-        time_window: Optional[Tuple[float, float]] = None) -> str:
+        title: Optional[str] = None) -> str:
     times = [f.time_s for f in pre_filter]
     pad = _typical_dt(times) / 2.0
 
@@ -132,15 +107,6 @@ def plot_raw_vs_filtered(
         _shade_unreliable(ax, pre_filter, lm_id, times, pad)
         ax.set_ylabel(coord)
         ax.set_title(lm_name, fontsize=9, loc="left")
-        if time_window is not None:
-            ax.set_xlim(*time_window)
-            windowed = [v for t, v in zip(times, raw)
-                        if time_window[0] <= t <= time_window[1]
-                        and v == v]  # in window, non-nan
-            if windowed:
-                lo, hi = min(windowed), max(windowed)
-                margin = 0.05 * (hi - lo) + 1e-6
-                ax.set_ylim(lo - margin, hi + margin)
 
     handles, labels = axes[0][0].get_legend_handles_labels()
     handles.append(Patch(color=_UNRELIABLE_COLOR, alpha=0.5))

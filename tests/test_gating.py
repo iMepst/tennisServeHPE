@@ -8,6 +8,7 @@ from serve_pipeline.gating import (
     MASK_UNDETECTED,
     compute_gap_statistics,
     gate_frames,
+    runs,
 )
 from serve_pipeline.landmarks import LANDMARK_NAMES, NUM_LANDMARKS
 from serve_pipeline.persistence import read_gated_csv, write_gated_csv
@@ -163,3 +164,13 @@ def test_gated_csv_roundtrip(tmp_path) -> None:
             for fld in _VALUE_FIELDS:
                 assert getattr(so, fld) == pytest.approx(getattr(si, fld),
                                                          abs=1e-6)
+
+
+@pytest.mark.parametrize("flags, expected", [
+    ([], []),
+    ([False, False], []),
+    ([True, True], [(0, 1)]),
+    ([False, True, True, False, True], [(1, 2), (4, 4)]),
+])
+def test_runs_returns_inclusive_true_ranges(flags, expected) -> None:
+    assert runs(flags) == expected

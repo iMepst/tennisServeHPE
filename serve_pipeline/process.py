@@ -1,21 +1,15 @@
-"""Stage 2 orchestrator: gating and filtering/interpolation."""
+"""Stage 2 orchestrator: gating (2a), interpolation (2b), filtering (2c)."""
 
-import argparse
 import datetime
 import logging
 import os
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Optional
 
 from . import __version__
 from .config import PipelineConfig
 from .filtering import FilterConfig, filter_series
 from .gating import compute_gap_statistics, gate_frames
-from .interpolation import (
-    ProcessedFrame,
-    interpolate_gaps,
-    summarize_interpolation,
-)
-from .landmarks import NAME_TO_ID
+from .interpolation import interpolate_gaps, summarize_interpolation
 from .layout import STAGE2, clip_from_stage_file, sibling_stage_dir
 from .persistence import (
     git_commit_hash,
@@ -36,25 +30,18 @@ logger = logging.getLogger(__name__)
 
 _DEFAULTS = PipelineConfig()
 
-DEFAULT_VISIBILITY_THRESHOLD = _DEFAULTS.visibility_threshold
-DEFAULT_MAX_GAP_MS = _DEFAULTS.max_gap_ms
-DEFAULT_QC_COORD = "y"
-QC_WINDOW_PAD_S = 2.5
-
 GATING_META_JSON = "gating_meta.json"
 FILTERING_META_JSON = "filtering_meta.json"
 
 
-def run_gating(landmarks_csv: str, outdir: Optional[str] = None,
-               meta_path: Optional[str] = None,
-               visibility_threshold: float = DEFAULT_VISIBILITY_THRESHOLD,
-               qc_landmarks: Optional[List[str]] = None) -> Dict[str, Any]:
+def run_gating(landmarks_csv: str,
+               meta_path: Optional[str] = None) -> Dict[str, Any]:
     clip = clip_from_stage_file(landmarks_csv)
-    if outdir is None:
-        outdir = sibling_stage_dir(landmarks_csv, STAGE2)
+    outdir = sibling_stage_dir(landmarks_csv, STAGE2)
     os.makedirs(outdir, exist_ok=True)
     if meta_path is None:
         meta_path = os.path.join(os.path.dirname(landmarks_csv), "meta.json")
+    visibility_threshold = _DEFAULTS.visibility_threshold
 
     frames = read_landmarks_csv(landmarks_csv)
     fps = float(read_metadata(meta_path)["video"]["fps"])
@@ -88,8 +75,7 @@ def run_gating(landmarks_csv: str, outdir: Optional[str] = None,
     }
     write_metadata(paths["gating_meta_json"], meta)
 
-    landmarks = qc_landmarks or DEFAULT_QC_LANDMARKS
-    plot_raw_vs_gated(gated, landmarks, visibility_threshold,
+    plot_raw_vs_gated(gated, DEFAULT_QC_LANDMARKS, visibility_threshold,
                       paths["gating_qc_png"])
 
     per_landmark = gap_stats["per_landmark"]
@@ -108,60 +94,14 @@ def run_gating(landmarks_csv: str, outdir: Optional[str] = None,
     return meta
 
 
-def _peak_motion_window(
-        frames: List[ProcessedFrame], landmark_names: List[str], coord: str,
-        pad_s: float = QC_WINDOW_PAD_S) -> Optional[Tuple[float, float]]:
-    best_lm: Optional[int] = None
-    best_span = -1.0
-    for name in landmark_names:
-        lm_id = NAME_TO_ID[name]
-        values = [getattr(f.samples[lm_id], coord) for f in frames
-                  if f.samples[lm_id].reliable]
-        values = [v for v in values if v is not None]
-        if len(values) < 2:
-            continue
-        span = max(values) - min(values)
-        if span > best_span:
-            best_span, best_lm = span, lm_id
-    if best_lm is None:
-        return None
-
-    # Peak velocity between adjacent reliable frames (reset across gaps, so a
-    # jump either side of a hole is never mistaken for fast motion).
-    best_t: Optional[float] = None
-    best_speed = -1.0
-    prev_val: Optional[float] = None
-    prev_pos = -2
-    for pos, f in enumerate(frames):
-        s = f.samples[best_lm]
-        v = getattr(s, coord)
-        if not s.reliable or v is None:
-            prev_val = None
-            continue
-        if prev_val is not None and pos == prev_pos + 1:
-            speed = abs(v - prev_val)
-            if speed > best_speed:
-                best_speed, best_t = speed, f.time_s
-        prev_val, prev_pos = v, pos
-    if best_t is None:
-        return None
-    return (best_t - pad_s, best_t + pad_s)
-
-
-def run_filtering(gated_csv: str, outdir: Optional[str] = None,
-                  meta_path: Optional[str] = None,
-                  max_gap_ms: float = DEFAULT_MAX_GAP_MS,
-                  filter_cfg: Optional[FilterConfig] = None,
-                  qc_landmarks: Optional[List[str]] = None,
-                  qc_coord: str = DEFAULT_QC_COORD) -> Dict[str, Any]:
+def run_filtering(gated_csv: str,
+                  meta_path: Optional[str] = None) -> Dict[str, Any]:
     clip = clip_from_stage_file(gated_csv)
-    if outdir is None:
-        outdir = os.path.dirname(os.path.abspath(gated_csv))
-    os.makedirs(outdir, exist_ok=True)
+    outdir = os.path.dirname(os.path.abspath(gated_csv))
     if meta_path is None:
         meta_path = os.path.join(os.path.dirname(gated_csv), GATING_META_JSON)
-    if filter_cfg is None:
-        filter_cfg = FilterConfig()
+    max_gap_ms = _DEFAULTS.max_gap_ms
+    filter_cfg = FilterConfig()
 
     gated = read_gated_csv(gated_csv)
     fps = float(read_metadata(meta_path)["parameters"]["fps"])
@@ -186,9 +126,9 @@ def run_filtering(gated_csv: str, outdir: Optional[str] = None,
 
     now = datetime.datetime.now(datetime.timezone.utc)
     meta: Dict[str, Any] = {
-        "stage": "2b",
+        "stage": "2b-2c",
         "clip": clip,
-        "step": "filtering",
+        "step": "interpolation, filtering",
         "pipeline_version": __version__,
         "commit": git_commit_hash(),
         "created_utc": now.isoformat(),
@@ -202,24 +142,16 @@ def run_filtering(gated_csv: str, outdir: Optional[str] = None,
         },
         "interpolation": interp_stats,
         "filtering": filter_stats,
-        "filter_note": (
-            "8 Hz cut-off because the fast racket-arm motion near impact "
-            "holds higher-frequency content that a lower cut-off would "
-            "remove; marker-based serve studies filter in this band "
-            "(pipeline_spec.md, Stage 2c)."),
         "outputs": {k: os.path.abspath(v) for k, v in paths.items()},
     }
     write_metadata(paths["filtering_meta_json"], meta)
 
-    landmarks = qc_landmarks or DEFAULT_QC_LANDMARKS
-    window = _peak_motion_window(filtered, landmarks, qc_coord)
     plot_raw_vs_filtered(
         pre_filter, filtered, f"butterworth {filter_cfg.cutoff_hz:g} Hz",
-        landmarks, qc_coord, paths["filtering_qc_png"],
-        title=f"filtered ({qc_coord}) - {clip}",
-        time_window=window)
+        DEFAULT_QC_LANDMARKS, "y", paths["filtering_qc_png"],
+        title=f"filtered (y) - {clip}")
 
-    logger.info("Stage 2b (filtering) complete")
+    logger.info("Stage 2b-2c (interpolation, filtering) complete")
     logger.info("  filtered series: %s", paths["filtered_csv"])
     logger.info("  metadata:        %s", paths["filtering_meta_json"])
     logger.info("  QC plot:         %s", paths["filtering_qc_png"])
@@ -235,72 +167,3 @@ def run_filtering(gated_csv: str, outdir: Optional[str] = None,
                 filter_stats["n_filtered_samples"],
                 filter_stats["n_reliable_samples"])
     return meta
-
-
-def _add_common_qc(sub: argparse.ArgumentParser) -> None:
-    sub.add_argument("--outdir", default=None,
-                     help="override output dir (default: the clip's "
-                          "stage2/ folder)")
-    sub.add_argument("--qc-landmarks", nargs="*", default=None,
-                     help="landmark names to plot (default: serving-arm "
-                          "elbows and wrists)")
-
-
-def main() -> None:
-    logging.basicConfig(level=logging.INFO, format="%(message)s")
-    parser = argparse.ArgumentParser(
-        description="Stage 2: gating (2a) and filtering (2b).")
-    sub = parser.add_subparsers(dest="step", required=True)
-
-    p2a = sub.add_parser("2a", help="visibility gating and gap handling")
-    p2a.add_argument("landmarks_csv",
-                     help="path to a Stage 1 stage1/landmarks.csv")
-    p2a.add_argument("--meta", default=None,
-                     help="Stage 1 meta.json (for fps); auto-detected "
-                          "next to the CSV if omitted")
-    p2a.add_argument("--visibility-threshold", type=float,
-                     default=DEFAULT_VISIBILITY_THRESHOLD)
-    _add_common_qc(p2a)
-
-    p2b = sub.add_parser("2b", help="interpolation and low-pass filtering")
-    p2b.add_argument("gated_csv", help="path to a Stage 2a stage2/gated.csv")
-    p2b.add_argument("--meta", default=None,
-                     help="Stage 2a gating_meta.json (for fps); auto-detected "
-                          "next to the CSV if omitted")
-    default_filter = FilterConfig()
-    p2b.add_argument("--max-gap-ms", type=float, default=DEFAULT_MAX_GAP_MS,
-                     help="interpolation gap bound in ms, converted to "
-                          "frames from the clip's fps")
-    p2b.add_argument("--order", type=int, default=default_filter.order,
-                     help="Butterworth order (nominal; filtfilt doubles it)")
-    p2b.add_argument("--cutoff-hz", type=float,
-                     default=default_filter.cutoff_hz,
-                     help="Butterworth cut-off frequency")
-    p2b.add_argument("--qc-coord", default=DEFAULT_QC_COORD,
-                     help="coordinate channel to plot (default: y)")
-    _add_common_qc(p2b)
-
-    args = parser.parse_args()
-    if args.step == "2a":
-        run_gating(
-            landmarks_csv=args.landmarks_csv,
-            outdir=args.outdir,
-            meta_path=args.meta,
-            visibility_threshold=args.visibility_threshold,
-            qc_landmarks=args.qc_landmarks,
-        )
-    else:
-        cfg = FilterConfig(order=args.order, cutoff_hz=args.cutoff_hz)
-        run_filtering(
-            gated_csv=args.gated_csv,
-            outdir=args.outdir,
-            meta_path=args.meta,
-            max_gap_ms=args.max_gap_ms,
-            filter_cfg=cfg,
-            qc_landmarks=args.qc_landmarks,
-            qc_coord=args.qc_coord,
-        )
-
-
-if __name__ == "__main__":
-    main()

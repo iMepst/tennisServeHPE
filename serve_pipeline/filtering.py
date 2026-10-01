@@ -1,10 +1,11 @@
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 import numpy as np
 from scipy.signal import butter, filtfilt
 
 from .config import PipelineConfig
+from .gating import runs
 from .interpolation import COORD_FIELDS, ProcessedFrame
 from .landmarks import NUM_LANDMARKS
 
@@ -22,20 +23,6 @@ class FilterConfig:
             "order": self.order,
             "cutoff_hz": self.cutoff_hz,
         }
-
-
-def _reliable_segments(reliable: List[bool]) -> List[tuple]:
-    segs: List[tuple] = []
-    start: Optional[int] = None
-    for i, r in enumerate(reliable):
-        if r and start is None:
-            start = i
-        elif not r and start is not None:
-            segs.append((start, i - 1))
-            start = None
-    if start is not None:
-        segs.append((start, len(reliable) - 1))
-    return segs
 
 
 def filter_series(frames: List[ProcessedFrame], fps: float,
@@ -57,7 +44,7 @@ def filter_series(frames: List[ProcessedFrame], fps: float,
     for lm_id in range(NUM_LANDMARKS):
         reliable = [f.samples[lm_id].reliable for f in frames]
         n_reliable += sum(reliable)
-        for start, end in _reliable_segments(reliable):
+        for start, end in runs(reliable):
             if (end - start + 1) < min_len:
                 n_short_segments += 1
                 continue
@@ -73,8 +60,6 @@ def filter_series(frames: List[ProcessedFrame], fps: float,
                 frames[p].samples[lm_id].filtered = True
                 n_filtered += 1
     return {
-        "filter": cfg.to_dict(),
-        "fps": fps,
         "min_segment_length": min_len,
         "n_reliable_samples": n_reliable,
         "n_filtered_samples": n_filtered,

@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
-from .gating import GatedFrame
+from .gating import GatedFrame, runs
 from .landmarks import LANDMARK_NAMES, NUM_LANDMARKS
 
 COORD_FIELDS = ["x", "y"]
@@ -27,20 +27,6 @@ class ProcessedFrame:
     samples: List[ProcessedSample]  # dense: NUM_LANDMARKS, ordered by id
 
 
-def _invalid_runs(valid: List[bool]) -> List[tuple]:
-    runs: List[tuple] = []
-    start: Optional[int] = None
-    for i, ok in enumerate(valid):
-        if not ok and start is None:
-            start = i
-        elif ok and start is not None:
-            runs.append((start, i - 1))
-            start = None
-    if start is not None:
-        runs.append((start, len(valid) - 1))
-    return runs
-
-
 def interpolate_gaps(gated: List[GatedFrame],
                      max_gap_frames: int) -> List[ProcessedFrame]:
     n = len(gated)
@@ -60,8 +46,8 @@ def interpolate_gaps(gated: List[GatedFrame],
                                      time_s=g.time_s, samples=samples))
 
     for lm_id in range(NUM_LANDMARKS):
-        valid = [f.samples[lm_id].valid for f in frames]
-        for start, end in _invalid_runs(valid):
+        invalid = [not f.samples[lm_id].valid for f in frames]
+        for start, end in runs(invalid):
             length = end - start + 1
             interior = start > 0 and end < n - 1
             if not interior or length > max_gap_frames:

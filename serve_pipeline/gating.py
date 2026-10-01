@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from .landmarks import LANDMARK_NAMES, NUM_LANDMARKS
 from .pose_extraction import FramePose
@@ -25,6 +25,21 @@ class GatedFrame:
     frame_index: int
     time_s: float
     samples: List[GatedSample]  # dense: length NUM_LANDMARKS, ordered by id
+
+
+def runs(flags: List[bool]) -> List[Tuple[int, int]]:
+    """Inclusive (start, end) index ranges of consecutive True flags."""
+    out: List[Tuple[int, int]] = []
+    start: Optional[int] = None
+    for i, flag in enumerate(flags):
+        if flag and start is None:
+            start = i
+        elif not flag and start is not None:
+            out.append((start, i - 1))
+            start = None
+    if start is not None:
+        out.append((start, len(flags) - 1))
+    return out
 
 
 def gate_frames(frames: List[FramePose],
@@ -65,23 +80,6 @@ def _gap_record(start_pos: int, end_pos: int,
     }
 
 
-def _find_gaps(valid_flags: List[bool], frame_indices: List[int],
-               fps: float) -> List[Dict[str, Any]]:
-    gaps: List[Dict[str, Any]] = []
-    start_pos: Optional[int] = None
-    for i, ok in enumerate(valid_flags):
-        if not ok:
-            if start_pos is None:
-                start_pos = i
-        elif start_pos is not None:
-            gaps.append(_gap_record(start_pos, i - 1, frame_indices, fps))
-            start_pos = None
-    if start_pos is not None:
-        gaps.append(_gap_record(start_pos, len(valid_flags) - 1,
-                                frame_indices, fps))
-    return gaps
-
-
 def compute_gap_statistics(gated: List[GatedFrame],
                            fps: float) -> Dict[str, Any]:
     frame_indices = [g.frame_index for g in gated]
@@ -92,7 +90,8 @@ def compute_gap_statistics(gated: List[GatedFrame],
         valid_flags = [g.samples[lm_id].valid for g in gated]
         reasons = [g.samples[lm_id].mask_reason for g in gated]
         n_valid = sum(valid_flags)
-        gaps = _find_gaps(valid_flags, frame_indices, fps)
+        gaps = [_gap_record(start, end, frame_indices, fps)
+                for start, end in runs([not v for v in valid_flags])]
         longest = max((gap["length_frames"] for gap in gaps), default=0)
         per_landmark[name] = {
             "valid_rate": n_valid / n if n else 0.0,

@@ -68,7 +68,8 @@ def test_build_report_writes_all_artifacts_without_events(tmp_path):
     assert len(dec) == n_crit * n_theta * n_sigma
     assert {r["verdict"] for r in dec} <= {"decidable", "unreliable"}
 
-    assert _header(report["outputs"]["projection_curves"]) == _PROJECTION_HEADER
+    assert (_header(report["outputs"]["projection_curves"])
+            == _PROJECTION_HEADER)
     assert _header(report["outputs"]["noise_propagation"]) == _NOISE_HEADER
     assert _header(report["outputs"]["decidability"]) == _DECIDABILITY_HEADER
 
@@ -120,10 +121,12 @@ def test_reproducible_numbers_across_runs(tmp_path):
     config = _fast_config()
     a = build_assessment_report(config, annotations_dir=str(tmp_path / "none"),
                                 results_root=str(tmp_path / "r"),
-                                out_dir=str(tmp_path / "a"), make_figures=False)
+                                out_dir=str(tmp_path / "a"),
+                                make_figures=False)
     b = build_assessment_report(config, annotations_dir=str(tmp_path / "none"),
                                 results_root=str(tmp_path / "r"),
-                                out_dir=str(tmp_path / "b"), make_figures=False)
+                                out_dir=str(tmp_path / "b"),
+                                make_figures=False)
     for key in ("projection_curves", "noise_propagation", "decidability"):
         with open(a["outputs"][key]) as fa, open(b["outputs"][key]) as fb:
             assert fa.read() == fb.read()

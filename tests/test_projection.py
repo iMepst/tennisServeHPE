@@ -2,9 +2,10 @@ import math
 
 import pytest
 
-from assessment.projection import (_tilt_about_vertical, numeric_projected_angle,
-                                    project_orthographic, projection_curves,
-                                    theta_values, trunk_projected_angle)
+from assessment.projection import (_tilt_about_vertical,
+                                   numeric_projected_angle,
+                                   project_orthographic, projection_curves,
+                                   theta_values, trunk_projected_angle)
 from serve_pipeline.angles import vector_angle
 from serve_pipeline.config import PipelineConfig
 
@@ -31,7 +32,8 @@ def test_theta_zero_returns_true_angle():
 
 
 def test_projection_reduces_angle_with_theta():
-    assert numeric_projected_angle(29.2, 45.0) < numeric_projected_angle(29.2, 0.0)
+    assert (numeric_projected_angle(29.2, 45.0)
+            < numeric_projected_angle(29.2, 0.0))
 
 
 def test_projection_curves_cover_four_criteria():

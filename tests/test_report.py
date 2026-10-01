@@ -35,6 +35,7 @@ def _read_csv(path: str) -> List[Dict[str, str]]:
     with open(path) as f:
         return list(csv.DictReader(f))
 
+
 def test_build_report_aggregates(tmp_path) -> None:
     root = str(tmp_path)
     _write_clip(root, "serve_a", "frontal", True, True,
@@ -57,6 +58,7 @@ def test_build_report_aggregates(tmp_path) -> None:
     assert ind[("serve_b", "front_knee_flexion")]["band_kind"] == "lower_bound"
 
     assert set(report["outputs"]) == {"indicators_csv"}
+
 
 def test_key_frame_candidates_need_both_events(tmp_path) -> None:
     root = str(tmp_path)

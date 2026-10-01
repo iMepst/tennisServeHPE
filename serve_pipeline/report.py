@@ -82,6 +82,7 @@ def write_csv(path: str, header: List[str],
             writer.writerow(row)
     return path
 
+
 def key_frame_candidates(clips: List[Dict[str, Any]],
                          results_root: str) -> List[str]:
     out: List[str] = []
@@ -93,6 +94,7 @@ def key_frame_candidates(clips: List[Dict[str, Any]],
         if os.path.isfile(png):
             out.append(png)
     return out
+
 
 def plot_angles_vs_bands(clips: List[Dict[str, Any]], path: str,
                          knee_cap_deg: float = KNEE_PLAUSIBILITY_CAP_DEG
@@ -155,11 +157,13 @@ def plot_angles_vs_bands(clips: List[Dict[str, Any]], path: str,
     plt.close(fig)
     return path
 
+
 _INDICATOR_HEADER = [
     "clip", "camera_plane", "view_direction", "criterion", "status", "angle",
     "band_lo", "band_hi", "band_kind", "detail",
     "trophy_locatable", "impact_locatable",
 ]
+
 
 def build_report(results_root: str, out_dir: str,
                  make_figure: bool = True) -> Dict[str, Any]:

@@ -41,14 +41,16 @@ from .visualization import save_key_frame_stills
 
 logger = logging.getLogger(__name__)
 
+
 def ensure_filtered(video_path: str, outdir: str = "results",
                     reuse: bool = True,
                     model_path: Optional[str] = None) -> Tuple[str, str]:
-    """Run (or reuse) extraction + gating + filtering; return (filtered_csv, meta).
+    """Run or reuse extraction, gating and filtering.
 
-    These persist to disk; when reuse is set, a step whose output already exists
-    is skipped (extraction is the slow one). Returns the filtered trajectory and
-    the extraction meta JSON, the two inputs the in-memory steps need.
+    These persist to disk; when reuse is set, a step whose output already
+    exists is skipped (extraction is the slow one). Returns the filtered
+    trajectory and the extraction meta JSON, the two inputs the in-memory
+    steps need.
     """
     clip = clip_from_video(video_path)
     stage1_dir = stage_dir(outdir, clip, STAGE1)
@@ -194,9 +196,9 @@ def write_key_frame_stills(video_path: str, stage1_meta: str,
                         plane)]))
     if not specs:
         return None
-    # Optional QC figure: needs the source video and the raw landmarks, neither
-    # of which the in-memory steps otherwise require. Skip (rather than fail the
-    # run) when either is unavailable.
+    # Optional QC figure: needs the source video and the raw landmarks,
+    # neither of which the in-memory steps otherwise require. Skip (rather
+    # than fail the run) when either is unavailable.
     landmarks_csv = os.path.join(os.path.dirname(stage1_meta), "landmarks.csv")
     if not (os.path.isfile(video_path) and os.path.isfile(landmarks_csv)
             and os.path.getsize(landmarks_csv) > 0):
@@ -209,6 +211,8 @@ def write_key_frame_stills(video_path: str, stage1_meta: str,
         os.path.dirname(os.path.abspath(filtered_csv)))
     out_path = os.path.join(clip_dir, "key_frames.png")
     return save_key_frame_stills(video_path, frame_poses, specs, out_path)
+
+
 def _log_summary(result: ClipResult, record: Dict[str, Any],
                  out_path: str, stills_path: Optional[str] = None) -> None:
     ev = result.key_events

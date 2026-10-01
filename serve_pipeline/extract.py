@@ -1,4 +1,4 @@
-"""Stage 1 orchestrator: video -> raw landmark CSV + meta JSON + overlay MP4."""
+"""Stage 1 orchestrator: video -> landmark CSV, meta JSON, overlay MP4."""
 
 import argparse
 import datetime
@@ -32,12 +32,12 @@ COORDINATE_NOTE = (
 
 
 def run_extraction(video_path: str, outdir: str = "results",
-               model_path: str = DEFAULT_MODEL,
-               min_detection_confidence: float = 0.5,
-               min_tracking_confidence: float = 0.5,
-               max_frames: Optional[int] = None,
-               contact_sheet_frames: int = 8,
-               progress_every: int = 25) -> Dict[str, Any]:
+                   model_path: str = DEFAULT_MODEL,
+                   min_detection_confidence: float = 0.5,
+                   min_tracking_confidence: float = 0.5,
+                   max_frames: Optional[int] = None,
+                   contact_sheet_frames: int = 8,
+                   progress_every: int = 25) -> Dict[str, Any]:
     if not os.path.isfile(model_path):
         raise FileNotFoundError(
             f"Pose model not found: {model_path}\nDownload it with:\n"

@@ -30,7 +30,8 @@ class Rule:
 
     # Band is mean +/- 1*sd: factor exactly 1, the minimal non-arbitrary
     # choice. It reflects the reference spread, not a claim that correct
-    # technique ends at its edge; "outside" is an attention flag, not a verdict.
+    # technique ends at its edge; "outside" is an attention flag, not a
+    # verdict.
     @property
     def lo(self) -> float:
         """Lower band bound (mean - sd); the flag threshold both kinds use."""
@@ -45,17 +46,17 @@ class Rule:
 # The four rules in one table. Reference mean/sd from Jacquier-Bret et al.
 # (2024); bands are derived (Rule.lo/Rule.hi), never written out.
 RULES = [
-    # Trunk inclination vs vertical, trophy frame. Frontal plane. Band [17.9, 32.1].
+    # Trunk inclination vs vertical, trophy frame. Frontal plane.
     Rule(id="trunk_inclination", key_frame="trophy", plane="frontal",
          mean=25.0, sd=7.1, band_kind="two_sided"),
-    # Front-leg hip->knee->ankle, trophy frame. Sagittal. Lower bound 54.8:
+    # Front-leg hip->knee->ankle, trophy frame. Sagittal. Lower bound:
     # flag only insufficient flexion; deep flexion is unpenalised.
     Rule(id="front_knee_flexion", key_frame="trophy", plane="sagittal",
          mean=64.5, sd=9.7, band_kind="lower_bound"),
-    # Serving-arm shoulder->elbow->wrist, impact. Plane-independent. Band [19.3, 39.1].
+    # Serving-arm shoulder->elbow->wrist, impact. Plane-independent.
     Rule(id="elbow_flexion", key_frame="impact", plane=None,
          mean=29.2, sd=9.9, band_kind="two_sided"),
-    # Serving-side shoulder->elbow vs shoulder->hip, impact. Plane-independent. Band [98.5, 110.7].
+    # Serving-side shoulder->elbow vs shoulder->hip, impact. Plane-independent.
     Rule(id="shoulder_elevation", key_frame="impact", plane=None,
          mean=104.6, sd=6.1, band_kind="two_sided"),
 ]
@@ -92,9 +93,10 @@ def plane_supported(rule: Rule, camera_plane: str) -> bool:
 class Indicator:
     """One criterion's result: a deviation flag, or why there is none.
 
-    status is "inside", "outside", or "unavailable". angle is the value flagged
-    (None when unavailable). detail carries the skip reason, or a flagged knee's
-    direction ("insufficient_flexion"); the one-sided band only flags too little.
+    status is "inside", "outside", or "unavailable". angle is the value
+    flagged (None when unavailable). detail carries the skip reason, or a
+    flagged knee's direction ("insufficient_flexion"); the one-sided band
+    only flags too little.
     """
 
     criterion: str
@@ -118,8 +120,9 @@ def evaluate_all(readings: AngleReadings,
 
     A genuine flag needs all three: the camera plane supports the criterion,
     the key frame was locatable, and the landmarks were reliable there. An
-    unsupported plane is reported unavailable before evaluation; a None angle
-    by evaluate. A flagged knee names its direction (insufficient flexion only).
+    unsupported plane is reported unavailable before evaluation; a None
+    angle is reported unavailable by evaluate. A flagged knee names its
+    direction (insufficient flexion only).
     """
     indicators: List[Indicator] = []
     for rule in RULES:

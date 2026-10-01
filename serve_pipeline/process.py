@@ -46,9 +46,9 @@ FILTERING_META_JSON = "filtering_meta.json"
 
 
 def run_gating(landmarks_csv: str, outdir: Optional[str] = None,
-                meta_path: Optional[str] = None,
-                visibility_threshold: float = DEFAULT_VISIBILITY_THRESHOLD,
-                qc_landmarks: Optional[List[str]] = None) -> Dict[str, Any]:
+               meta_path: Optional[str] = None,
+               visibility_threshold: float = DEFAULT_VISIBILITY_THRESHOLD,
+               qc_landmarks: Optional[List[str]] = None) -> Dict[str, Any]:
     clip = clip_from_stage_file(landmarks_csv)
     if outdir is None:
         outdir = sibling_stage_dir(landmarks_csv, STAGE2)
@@ -149,11 +149,11 @@ def _peak_motion_window(
 
 
 def run_filtering(gated_csv: str, outdir: Optional[str] = None,
-                meta_path: Optional[str] = None,
-                max_gap_ms: float = DEFAULT_MAX_GAP_MS,
-                filter_cfg: Optional[FilterConfig] = None,
-                qc_landmarks: Optional[List[str]] = None,
-                qc_coord: str = DEFAULT_QC_COORD) -> Dict[str, Any]:
+                  meta_path: Optional[str] = None,
+                  max_gap_ms: float = DEFAULT_MAX_GAP_MS,
+                  filter_cfg: Optional[FilterConfig] = None,
+                  qc_landmarks: Optional[List[str]] = None,
+                  qc_coord: str = DEFAULT_QC_COORD) -> Dict[str, Any]:
     clip = clip_from_stage_file(gated_csv)
     if outdir is None:
         outdir = os.path.dirname(os.path.abspath(gated_csv))
@@ -172,7 +172,8 @@ def run_filtering(gated_csv: str, outdir: Optional[str] = None,
     pre_filter = interpolate_gaps(gated, max_gap_frames)
     interp_stats = summarize_interpolation(pre_filter)
 
-    # Fresh interpolation pass to filter in place, leaving pre_filter untouched for QC.
+    # Fresh interpolation pass to filter in place, leaving pre_filter
+    # untouched for QC.
     filtered = interpolate_gaps(gated, max_gap_frames)
     filter_stats = filter_series(filtered, fps, filter_cfg)
 

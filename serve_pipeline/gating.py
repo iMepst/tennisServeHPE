@@ -8,6 +8,7 @@ MASK_OK = "ok"
 MASK_UNDETECTED = "undetected"
 MASK_LOW_VISIBILITY = "low_visibility"
 
+
 @dataclass
 class GatedSample:
     landmark_id: int

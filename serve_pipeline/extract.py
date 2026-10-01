@@ -41,7 +41,7 @@ def run_extraction(video_path: str, outdir: str = "results",
     if not os.path.isfile(model_path):
         raise FileNotFoundError(
             f"Pose model not found: {model_path}\nDownload it with:\n"
-            "curl -L -o models/pose_landmarker_heavy.task "
+            "curl -L --create-dirs -o models/pose_landmarker_heavy.task "
             "https://storage.googleapis.com/mediapipe-models/pose_landmarker/"
             "pose_landmarker_heavy/float16/latest/pose_landmarker_heavy.task"
         )

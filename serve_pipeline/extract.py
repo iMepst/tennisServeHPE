@@ -1,10 +1,9 @@
 """Stage 1 orchestrator: video -> landmark CSV, meta JSON, overlay MP4."""
 
-import argparse
 import datetime
 import logging
 import os
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 import mediapipe
 
@@ -25,19 +24,12 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_MODEL = PipelineConfig().model_path
 
-COORDINATE_NOTE = (
-    "Per landmark only normalized image-plane x, y and visibility are "
-    "kept; rescaling to pixels happens later, in the angle computation."
-)
+CONTACT_SHEET_FRAMES = 8
+PROGRESS_EVERY = 25
 
 
 def run_extraction(video_path: str, outdir: str = "results",
-                   model_path: str = DEFAULT_MODEL,
-                   min_detection_confidence: float = 0.5,
-                   min_tracking_confidence: float = 0.5,
-                   max_frames: Optional[int] = None,
-                   contact_sheet_frames: int = 8,
-                   progress_every: int = 25) -> Dict[str, Any]:
+                   model_path: str = DEFAULT_MODEL) -> Dict[str, Any]:
     if not os.path.isfile(model_path):
         raise FileNotFoundError(
             f"Pose model not found: {model_path}\nDownload it with:\n"
@@ -61,23 +53,15 @@ def run_extraction(video_path: str, outdir: str = "results",
     with VideoReader(video_path) as reader:
         video = reader.metadata
         n_expected = video.frame_count_reported
-        if max_frames is not None:
-            n_expected = min(n_expected, max_frames)
         sheet_indices = set(range(
-            0, n_expected, max(1, n_expected // contact_sheet_frames)))
+            0, n_expected, max(1, n_expected // CONTACT_SHEET_FRAMES)))
 
-        with PoseExtractor(
-            model_path=model_path,
-            min_detection_confidence=min_detection_confidence,
-            min_tracking_confidence=min_tracking_confidence,
-        ) as extractor, \
+        with PoseExtractor(model_path=model_path) as extractor, \
                 LandmarkCsvWriter(paths["landmarks_csv"]) as csv_out, \
                 OverlayVideoWriter(
                     paths["overlay_mp4"], video.fps,
                     video.width, video.height) as vid_out:
             for frame in reader:
-                if max_frames is not None and frame.index >= max_frames:
-                    break
                 frame_pose = extractor.process(frame.index, frame.time_s,
                                                frame.image_bgr)
                 # Persist first, before overlay/sheet work can fail.
@@ -87,7 +71,7 @@ def run_extraction(video_path: str, outdir: str = "results",
                 frame_poses.append(frame_pose)
                 if frame.index in sheet_indices:
                     sheet_frames.append(overlay)
-                if frame.index % progress_every == 0:
+                if frame.index % PROGRESS_EVERY == 0:
                     logger.info(
                         "  frame %d%s", frame.index,
                         "" if frame_pose.detected else "  [no pose]")
@@ -109,7 +93,6 @@ def run_extraction(video_path: str, outdir: str = "results",
         "extractor": extractor_config,
         "statistics": stats,
         "outputs": {k: os.path.abspath(v) for k, v in paths.items()},
-        "coordinate_note": COORDINATE_NOTE,
     }
     write_metadata(paths["meta_json"], meta)
 
@@ -125,30 +108,3 @@ def run_extraction(video_path: str, outdir: str = "results",
         stats["frames_with_pose"], stats["frames_processed"],
         stats["mean_visibility"])
     return meta
-
-
-def main() -> None:
-    logging.basicConfig(level=logging.INFO, format="%(message)s")
-    parser = argparse.ArgumentParser(
-        description="Stage 1: BlazePose extraction + diagnostic overlay.")
-    parser.add_argument("video", help="path to the input serve video")
-    parser.add_argument("--outdir", default="results")
-    parser.add_argument("--model", default=DEFAULT_MODEL,
-                        help="path to a pose_landmarker .task file")
-    parser.add_argument("--min-detection-confidence", type=float, default=0.5)
-    parser.add_argument("--min-tracking-confidence", type=float, default=0.5)
-    parser.add_argument("--max-frames", type=int, default=None,
-                        help="limit frames for quick tests")
-    args = parser.parse_args()
-    run_extraction(
-        video_path=args.video,
-        outdir=args.outdir,
-        model_path=args.model,
-        min_detection_confidence=args.min_detection_confidence,
-        min_tracking_confidence=args.min_tracking_confidence,
-        max_frames=args.max_frames,
-    )
-
-
-if __name__ == "__main__":
-    main()

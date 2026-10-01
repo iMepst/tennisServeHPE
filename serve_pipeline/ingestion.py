@@ -5,7 +5,7 @@ from typing import Any, Dict, Iterator
 import cv2
 import numpy as np
 
-# OpenCV frame: H×W×3, BGR order, uint8.
+# OpenCV frame: HxWx3, BGR order, uint8.
 BgrImage = np.ndarray
 
 

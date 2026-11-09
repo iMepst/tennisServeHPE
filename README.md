@@ -106,7 +106,7 @@ The clips are third-party footage and are not part of the repository; they
 come as a separate archive, `tennisServeHPE-data.zip`. It holds the 52
 admitted clips, their metadata (`videos.csv`), the manual key frames
 (`annotations/events.csv`), the exact pose model used for the thesis and a
-clip overview (`clip_overview.pdf` / `.csv`).
+clip overview (`clip_overview.pdf`).
 
 1. Clone the repository (branch `master`) and complete the setup above,
    skipping the model download.
@@ -116,6 +116,10 @@ clip overview (`clip_overview.pdf` / `.csv`).
    ```bash
    unzip tennisServeHPE-data.zip
    ```
+
+   If the browser already unpacked the download (e.g. Safari), move the
+   `data/` and `models/` folders from `tennisServeHPE-data/` into the
+   repository root instead.
 
 3. Run all clips, then aggregate the corpus and the assessment:
 
@@ -129,7 +133,7 @@ The Results chapter maps to these outputs:
 
 | Thesis | Output |
 |---|---|
-| Sample composition | `data/clip_overview.csv` |
+| Sample composition | `data/clip_overview.pdf` |
 | Criterion availability (table) | `results/_report/indicators.csv`, column `status` |
 | Key-event detection performance (table) | `results/assessment/event_error.json` |
 | Projection curves (figure, foreshortening at 45°) | `results/assessment/figures/projection_curves.png`, `projection_curves.csv` |

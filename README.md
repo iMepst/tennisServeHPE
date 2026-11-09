@@ -109,26 +109,45 @@ admitted clips, their metadata (`videos.csv`), the manual key frames
 (`annotations/events.csv`), the exact pose model used for the thesis and a
 clip overview (`clip_overview.pdf`).
 
-1. Clone the repository (branch `master`) and complete the setup above,
-   skipping the model download.
-2. Unpack the archive in the repository root; it fills `data/` and
-   `models/`:
+**1. Get the code**
 
-   ```bash
-   unzip tennisServeHPE-data.zip
-   ```
+```bash
+git clone https://github.com/iMepst/tennisServeHPE.git
+cd tennisServeHPE
+```
 
-   If the browser already unpacked the download (e.g. Safari), move the
-   `data/` and `models/` folders from `tennisServeHPE-data/` into the
-   repository root instead.
+Then complete the [setup](#setup), skipping the model download.
 
-3. Run all clips, then aggregate the corpus and the assessment:
+**2. Add the data**
 
-   ```bash
-   python -m serve_pipeline.corpus     # results/<clip>/ for all 52 clips (~10-15 min on a laptop CPU)
-   python -m serve_pipeline.report     # results/_report/
-   python -m assessment.report         # results/assessment/
-   ```
+Download `tennisServeHPE-data.zip`, put it in the `tennisServeHPE` folder
+and unpack it there:
+
+```bash
+unzip tennisServeHPE-data.zip
+```
+
+If the browser already unpacked the download (e.g. Safari), move the
+`data/` and `models/` folders from `tennisServeHPE-data/` into the
+`tennisServeHPE` folder instead.
+
+**3. Run the pipeline on all 52 clips** (about 11 minutes)
+
+```bash
+python -m serve_pipeline.corpus
+```
+
+**4. Aggregate the corpus**
+
+```bash
+python -m serve_pipeline.report
+```
+
+**5. Run the assessment**
+
+```bash
+python -m assessment.report
+```
 
 The Results chapter maps to these outputs:
 

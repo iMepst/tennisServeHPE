@@ -27,7 +27,8 @@ pip install -r requirements.txt        # runtime
 pip install -r requirements-dev.txt    # tests, lint, type checks
 ```
 
-Download the pose model (not tracked, ~29 MB):
+Download the pose model (not tracked, ~29 MB; to reproduce the thesis,
+use the model from the data archive instead, see below):
 
 ```bash
 curl -L --create-dirs -o models/pose_landmarker_heavy.task \
@@ -98,6 +99,45 @@ python -m assessment.report       # results/assessment/
 The assessment reads manual key frames from `data/annotations/events.csv`
 (format: `docs/annotation_formats.md`); without it the event error is
 skipped.
+
+## Reproducing the thesis results
+
+The clips are third-party footage and are not part of the repository; they
+come as a separate archive, `tennisServeHPE-data.zip`. It holds the 52
+admitted clips, their metadata (`videos.csv`), the manual key frames
+(`annotations/events.csv`), the exact pose model used for the thesis and a
+clip overview (`clip_overview.pdf` / `.csv`).
+
+1. Clone the repository (branch `master`) and complete the setup above,
+   skipping the model download.
+2. Unpack the archive in the repository root; it fills `data/` and
+   `models/`:
+
+   ```bash
+   unzip tennisServeHPE-data.zip
+   ```
+
+3. Run all clips, then aggregate the corpus and the assessment:
+
+   ```bash
+   python -m serve_pipeline.corpus     # results/<clip>/ for all 52 clips (~10-15 min on a laptop CPU)
+   python -m serve_pipeline.report     # results/_report/
+   python -m assessment.report         # results/assessment/
+   ```
+
+The Results chapter maps to these outputs:
+
+| Thesis | Output |
+|---|---|
+| Sample composition | `data/clip_overview.csv` |
+| Criterion availability (table) | `results/_report/indicators.csv`, column `status` |
+| Key-event detection performance (table) | `results/assessment/event_error.json` |
+| Projection curves (figure, foreshortening at 45°) | `results/assessment/figures/projection_curves.png`, `projection_curves.csv` |
+| Landmark noise propagation (figure, spread ranges) | `results/assessment/figures/spread_vs_theta.png`, `noise_propagation.csv` |
+| Decidability map (figure, peak ratios) | `results/assessment/figures/decidability_map.png`, `decidability.csv` |
+| Angles against reference bands (figure) | `results/_report/angles_vs_bands.png` |
+| Empirical indicators (table, split by plane) | `results/_report/indicators.csv`, aggregated per criterion |
+| Example on a single clip (figure) | `results/video_000003/key_frames.png`, `result.json` |
 
 ## Layout
 

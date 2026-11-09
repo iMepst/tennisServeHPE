@@ -18,7 +18,8 @@ Specifications:
 
 ## Setup
 
-Python 3.11. Run all commands from the repo root.
+Python 3.11. Run all commands from the repo root. Tested on macOS with
+Apple Silicon (M1, M1 Pro) only.
 
 ```bash
 python -m venv .venv
